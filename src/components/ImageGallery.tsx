@@ -31,6 +31,8 @@ export default function ImageGallery({ images }: Props) {
             <img
               src={src}
               alt={`첨부 이미지 ${i + 1}`}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover hover:opacity-90 transition-opacity"
             />
           </button>

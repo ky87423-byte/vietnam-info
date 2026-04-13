@@ -71,7 +71,7 @@ export default function ImageUploader({
               className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-50"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt="" className="w-full h-full object-cover" />
+              <img src={src} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
               <button
                 type="button"
                 onClick={() => remove(i)}

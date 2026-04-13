@@ -36,7 +36,9 @@ export default function ReviewWrite() {
     if (!category)          return setError("카테고리를 선택해주세요.");
     if (!district)          return setError("지역을 선택해주세요.");
     if (!title.trim())      return setError("제목을 입력해주세요.");
+    if (title.trim().length > 200) return setError("제목은 200자 이내로 입력해주세요.");
     if (!content.trim())    return setError("후기 내용을 입력해주세요.");
+    if (content.trim().length > 10000) return setError("내용은 10,000자 이내로 입력해주세요.");
 
     addPost({
       type: "review",
@@ -117,6 +119,7 @@ export default function ReviewWrite() {
           <label className="block text-sm font-semibold text-gray-700 mb-2">제목 *</label>
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
             placeholder="후기 제목을 입력하세요"
+            maxLength={200}
             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400" />
         </div>
 
@@ -126,6 +129,7 @@ export default function ReviewWrite() {
           <textarea value={content} onChange={(e) => setContent(e.target.value)}
             placeholder="실제 이용 경험을 솔직하게 작성해주세요..."
             rows={10}
+            maxLength={10000}
             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 resize-none" />
         </div>
 

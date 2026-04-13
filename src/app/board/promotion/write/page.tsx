@@ -411,7 +411,9 @@ export default function PromotionWrite() {
     if (!category)       return setError("카테고리를 선택해주세요.");
     if (!district)       return setError("지역을 선택해주세요.");
     if (!title.trim())   return setError("업체명을 입력해주세요.");
+    if (title.trim().length > 200) return setError("업체명은 200자 이내로 입력해주세요.");
     if (!content.trim()) return setError("업체 소개를 입력해주세요.");
+    if (content.trim().length > 10000) return setError("업체 소개는 10,000자 이내로 입력해주세요.");
 
     addPost({
       type: "promotion",
@@ -484,6 +486,7 @@ export default function PromotionWrite() {
           <label className="block text-sm font-semibold text-gray-700 mb-2">업체명 *</label>
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
             placeholder="업체명을 입력하세요"
+            maxLength={200}
             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400" />
         </div>
 
@@ -493,6 +496,7 @@ export default function PromotionWrite() {
           <textarea value={content} onChange={(e) => setContent(e.target.value)}
             placeholder="업체 소개를 입력하세요..."
             rows={5}
+            maxLength={10000}
             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 resize-none" />
         </div>
 

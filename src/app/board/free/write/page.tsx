@@ -18,7 +18,9 @@ export default function FreeWrite() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return setError("제목을 입력해주세요.");
+    if (title.trim().length > 200) return setError("제목은 200자 이내로 입력해주세요.");
     if (!content.trim()) return setError("내용을 입력해주세요.");
+    if (content.trim().length > 10000) return setError("내용은 10,000자 이내로 입력해주세요.");
 
     addPost({
       type: "free",
@@ -51,6 +53,7 @@ export default function FreeWrite() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="제목을 입력하세요"
+            maxLength={200}
             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400"
           />
         </div>
@@ -62,6 +65,7 @@ export default function FreeWrite() {
             onChange={(e) => setContent(e.target.value)}
             placeholder="내용을 입력하세요..."
             rows={12}
+            maxLength={10000}
             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 resize-none"
           />
         </div>

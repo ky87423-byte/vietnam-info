@@ -203,12 +203,24 @@ export default function NearbyPage() {
   const handlePlaceClick = useCallback((place: NearbyPlace, marker: google.maps.Marker) => {
     setSelected({ kind: "place", data: place });
     if (userLoc) setDistance(haversineKm(userLoc.lat, userLoc.lng, place.lat, place.lng));
-    infoWindowRef.current?.setContent(`
-      <div style="padding:4px 2px;min-width:160px">
-        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${place.name}</div>
-        <div style="font-size:12px;color:#555">${place.district} · ${place.address}</div>
-        ${place.phone ? `<div style="font-size:12px;color:#1d4ed8;margin-top:4px">${place.phone}</div>` : ""}
-      </div>`);
+    // DOM API 사용 — textContent로 XSS 방지
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "padding:4px 2px;min-width:160px";
+    const nameEl = document.createElement("div");
+    nameEl.style.cssText = "font-weight:700;font-size:14px;margin-bottom:4px";
+    nameEl.textContent = place.name;
+    const addrEl = document.createElement("div");
+    addrEl.style.cssText = "font-size:12px;color:#555";
+    addrEl.textContent = `${place.district} · ${place.address}`;
+    wrap.appendChild(nameEl);
+    wrap.appendChild(addrEl);
+    if (place.phone) {
+      const phoneEl = document.createElement("div");
+      phoneEl.style.cssText = "font-size:12px;color:#1d4ed8;margin-top:4px";
+      phoneEl.textContent = place.phone;
+      wrap.appendChild(phoneEl);
+    }
+    infoWindowRef.current?.setContent(wrap);
     infoWindowRef.current?.open(mapRef.current, marker);
   }, [userLoc]);
 
@@ -217,13 +229,28 @@ export default function NearbyPage() {
     setSelected({ kind: "restaurant", data: r });
     if (userLoc) setDistance(haversineKm(userLoc.lat, userLoc.lng, r.lat, r.lng));
     const cuisine = cuisineMap[r.cuisine];
-    infoWindowRef.current?.setContent(`
-      <div style="padding:4px 2px;min-width:180px">
-        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${r.name}</div>
-        ${r.rating ? `<div style="font-size:12px;color:#f59e0b;margin-bottom:2px">★ ${r.rating.toFixed(1)} <span style="color:#888">(${r.userRatingsTotal ?? 0})</span></div>` : ""}
-        <div style="font-size:11px;color:#555">${r.address}</div>
-        <div style="font-size:11px;color:${cuisine.color};margin-top:4px;font-weight:600">${cuisine.icon} ${cuisine.label}</div>
-      </div>`);
+    // DOM API 사용 — textContent로 XSS 방지
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "padding:4px 2px;min-width:180px";
+    const nameEl = document.createElement("div");
+    nameEl.style.cssText = "font-weight:700;font-size:14px;margin-bottom:4px";
+    nameEl.textContent = r.name;
+    wrap.appendChild(nameEl);
+    if (r.rating) {
+      const ratingEl = document.createElement("div");
+      ratingEl.style.cssText = "font-size:12px;color:#f59e0b;margin-bottom:2px";
+      ratingEl.textContent = `★ ${r.rating.toFixed(1)} (${r.userRatingsTotal ?? 0})`;
+      wrap.appendChild(ratingEl);
+    }
+    const addrEl = document.createElement("div");
+    addrEl.style.cssText = "font-size:11px;color:#555";
+    addrEl.textContent = r.address;
+    wrap.appendChild(addrEl);
+    const cuisineEl = document.createElement("div");
+    cuisineEl.style.cssText = `font-size:11px;color:${cuisine.color};margin-top:4px;font-weight:600`;
+    cuisineEl.textContent = `${cuisine.icon} ${cuisine.label}`;
+    wrap.appendChild(cuisineEl);
+    infoWindowRef.current?.setContent(wrap);
     infoWindowRef.current?.open(mapRef.current, marker);
   }, [userLoc]);
 
