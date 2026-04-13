@@ -77,7 +77,7 @@ export default function NearbyPage() {
     }
 
     const init = async () => {
-      setOptions({ key: apiKey, version: "weekly", language: "ko" });
+      setOptions({ key: apiKey, language: "ko" });
 
       // importLibrary 방식으로 필요한 라이브러리만 개별 로드
       const mapsLib   = await importLibrary("maps")   as MapsLib;
