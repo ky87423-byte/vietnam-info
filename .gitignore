@@ -40,5 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# lighthouse / psi temp
+lh-result.json
+psi-result.json
+lh-tmp/
+
 # Claude Code local settings
 .claude/

@@ -72,6 +72,9 @@ export default function Header() {
             {user ? (
               <>
                 <span className="text-yellow-300">{user.name}</span>
+                {user.memberType === "admin" && (
+                  <Link href="/admin" className="hover:text-yellow-300 transition-colors">관리자</Link>
+                )}
                 <Link href="/mypage" className="hover:text-yellow-300 transition-colors">마이페이지</Link>
                 <button onClick={handleLogout} className="hover:text-yellow-300 transition-colors">로그아웃</button>
               </>

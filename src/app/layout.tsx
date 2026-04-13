@@ -13,6 +13,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
+  manifest: "/manifest.json",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://vietnam-info-ky87423-byte.vercel.app"
   ),
@@ -43,6 +44,17 @@ export const metadata: Metadata = {
     title: "베트남인포 - 호치민 한인 커뮤니티",
     description:
       "호치민 한인 커뮤니티 베트남인포 - 음식점, 골프장, 숙소, 렌트카, 환전 정보와 자유·후기·홍보 게시판",
+  },
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/icon-192.png",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "default",
+    "apple-mobile-web-app-title": "베트남인포",
+    "theme-color": "#b91c1c",
   },
 };
 

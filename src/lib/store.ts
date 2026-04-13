@@ -76,6 +76,11 @@ export function addPost(data: {
   return post;
 }
 
+export function deletePost(id: number): void {
+  const all = parse<StoredPost[]>(POSTS_KEY, []);
+  localStorage.setItem(POSTS_KEY, JSON.stringify(all.filter((p) => p.id !== id)));
+}
+
 /* ══ 댓글 ══ */
 
 export function getComments(postId: number): StoredComment[] {
@@ -103,6 +108,26 @@ export function addComment(postId: number, author: string, content: string): Sto
     localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
   }
   return comment;
+}
+
+export function deleteComment(postId: number, commentId: number): void {
+  const all = parse<Record<number, StoredComment[]>>(COMMENTS_KEY, {});
+  if (all[postId]) {
+    all[postId] = all[postId].filter((c) => c.id !== commentId);
+    localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
+  }
+  // commentCount 감소
+  const posts = parse<StoredPost[]>(POSTS_KEY, []);
+  const idx = posts.findIndex((p) => p.id === postId);
+  if (idx !== -1 && posts[idx].commentCount > 0) {
+    posts[idx].commentCount -= 1;
+    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+  }
+}
+
+export function getAllComments(): Array<StoredComment & { postId: number }> {
+  const all = parse<Record<number, StoredComment[]>>(COMMENTS_KEY, {});
+  return Object.values(all).flat() as Array<StoredComment & { postId: number }>;
 }
 
 /* ══ 좋아요 ══ */

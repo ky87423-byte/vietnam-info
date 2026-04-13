@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
   const [email, setEmail]       = useState("");
@@ -89,11 +90,38 @@ export default function LoginPage() {
               <div className="w-full border-t border-gray-200" />
             </div>
             <div className="relative flex justify-center text-xs text-gray-400">
-              <span className="bg-white px-3">또는</span>
+              <span className="bg-white px-3">소셜 로그인</span>
             </div>
           </div>
 
-          <div className="text-center text-sm text-gray-600">
+          {/* 구글 로그인 */}
+          <button
+            type="button"
+            onClick={() => signIn("google", { callbackUrl: "/" })}
+            className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-xl py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6C12.2 13.1 17.6 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 6.9-10 6.9-17z"/>
+              <path fill="#FBBC05" d="M10.4 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.8-6A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.6 10.7l7.8-6z"/>
+              <path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.4 0-11.8-4.3-13.7-10l-7.8 6C6.6 42.6 14.6 48 24 48z"/>
+            </svg>
+            Google로 로그인
+          </button>
+
+          {/* 카카오 로그인 */}
+          <button
+            type="button"
+            onClick={() => signIn("kakao", { callbackUrl: "/" })}
+            className="w-full flex items-center justify-center gap-3 bg-[#FEE500] rounded-xl py-2.5 text-sm font-medium text-[#3C1E1E] hover:bg-[#F0D900] transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#3C1E1E" d="M12 3C6.477 3 2 6.477 2 11c0 2.9 1.6 5.5 4 7.1L5 22l4.4-2.9c.8.2 1.7.3 2.6.3 5.523 0 10-3.477 10-8S17.523 3 12 3z"/>
+            </svg>
+            카카오로 로그인
+          </button>
+
+          <div className="text-center text-sm text-gray-600 pt-2">
             아직 회원이 아니신가요?{" "}
             <Link href="/auth/register" className="text-red-700 font-semibold hover:underline">
               회원가입

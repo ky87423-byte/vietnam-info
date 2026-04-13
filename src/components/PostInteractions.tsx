@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { getLikeState, toggleLike, getComments, addComment, StoredComment } from "@/lib/store";
+import { getLikeState, toggleLike, getComments, addComment, deleteComment, StoredComment } from "@/lib/store";
 
 interface Props {
   postId: number;
@@ -32,6 +32,11 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
     const { count, liked } = toggleLike(postId, baseLikes);
     setLikeCount(count);
     setLiked(liked);
+  };
+
+  const handleDelete = (commentId: number) => {
+    deleteComment(postId, commentId);
+    setComments((prev) => prev.filter((c) => c.id !== commentId));
   };
 
   const handleComment = (e: React.FormEvent) => {
@@ -112,6 +117,15 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-medium text-gray-800">{c.author}</span>
                     <span className="text-xs text-gray-400">{c.createdAt}</span>
+                    {(user?.name === c.author || user?.memberType === "admin") && (
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="ml-auto text-xs text-gray-400 hover:text-red-500 transition-colors"
+                        aria-label="댓글 삭제"
+                      >
+                        삭제
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm text-gray-700 leading-relaxed">{c.content}</p>
                 </div>
