@@ -19,8 +19,8 @@ export default function AdBanner() {
 
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-yellow-200">
-      <div className="bg-yellow-500 text-white text-xs font-bold px-3 py-1 flex items-center gap-1">
-        <span>⭐</span>
+      <div className="bg-yellow-500 text-gray-900 text-xs font-bold px-3 py-1 flex items-center gap-1">
+        <span aria-hidden="true">⭐</span>
         <span>프리미엄 광고</span>
       </div>
       <div className="relative h-48 sm:h-56">
@@ -29,7 +29,7 @@ export default function AdBanner() {
           alt={ad.name}
           fill
           className="object-cover"
-          unoptimized
+          sizes="(max-width: 768px) 100vw, 400px"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
@@ -42,13 +42,21 @@ export default function AdBanner() {
         </div>
       </div>
       <div className="p-3 flex items-center justify-between">
-        <div className="flex gap-1">
-          {paidAds.map((_, i) => (
+        {/* 캐러셀 도트 — 클릭 영역 p-2로 확장, aria-label 추가 */}
+        <div className="flex gap-1" role="tablist" aria-label="광고 목록">
+          {paidAds.map((a, i) => (
             <button
               key={i}
+              role="tab"
+              aria-selected={i === current}
+              aria-label={`${a.name} 광고 보기`}
               onClick={() => setCurrent(i)}
-              className={`w-2 h-2 rounded-full transition-colors ${i === current ? "bg-red-600" : "bg-gray-300"}`}
-            />
+              className="p-2 -m-1 flex items-center justify-center"
+            >
+              <span
+                className={`w-2 h-2 rounded-full transition-colors block ${i === current ? "bg-red-600" : "bg-gray-300"}`}
+              />
+            </button>
           ))}
         </div>
         <Link
@@ -56,6 +64,7 @@ export default function AdBanner() {
           className="text-xs bg-red-700 text-white px-3 py-1.5 rounded-lg hover:bg-red-800 transition-colors"
         >
           자세히 보기
+          <span className="sr-only"> - {ad.name}</span>
         </Link>
       </div>
     </div>

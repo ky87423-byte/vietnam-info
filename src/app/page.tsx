@@ -33,7 +33,7 @@ export default function Home() {
             </Link>
             <Link
               href="/auth/register"
-              className="bg-yellow-500 text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-yellow-600 transition-colors"
+              className="bg-yellow-500 text-gray-900 font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-yellow-600 transition-colors"
             >
               회원가입
             </Link>
@@ -205,7 +205,7 @@ export default function Home() {
             </ul>
             <Link
               href="/auth/register?type=business"
-              className="mt-4 block w-full text-center bg-yellow-500 text-white text-sm py-2.5 rounded-lg hover:bg-yellow-600 transition-colors font-semibold"
+              className="mt-4 block w-full text-center bg-yellow-500 text-gray-900 text-sm py-2.5 rounded-lg hover:bg-yellow-600 transition-colors font-semibold"
             >
               업소 등록하기
             </Link>
