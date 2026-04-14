@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PostCard from "@/components/PostCard";
 import { promotionPosts, categoryLabels, categoryIcons, Category, District, Post } from "@/lib/mockData";
-import { getUserPosts, StoredPost } from "@/lib/store";
+import { getUserPosts, getMockOverrides, StoredPost } from "@/lib/store";
 
 function PromotionBoard() {
   const searchParams = useSearchParams();
@@ -14,13 +14,15 @@ function PromotionBoard() {
   const [userPosts, setUserPosts] = useState<StoredPost[]>([]);
 
   useEffect(() => {
-    setUserPosts(getUserPosts("promotion"));
+    setUserPosts(getUserPosts("promotion").filter((p) => !p.hidden));
   }, []);
 
   const selectedCategory = category ?? "all";
   const selectedDistrict = district ?? "all";
 
-  const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...promotionPosts];
+  const mockHidden = getMockOverrides();
+  const visibleMock = promotionPosts.filter((p) => !mockHidden[p.id]?.hidden);
+  const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...visibleMock];
 
   const premiumPosts = allPosts.filter((p) => {
     if (!p.isPaid) return false;

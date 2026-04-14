@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { freePosts, gradeColors } from "@/lib/mockData";
-import { getUserPosts, StoredPost } from "@/lib/store";
+import { getUserPosts, getMockOverrides, StoredPost } from "@/lib/store";
 import { Post } from "@/lib/mockData";
 
 const PAGE_SIZE = 15;
@@ -13,10 +13,15 @@ export default function FreeBoard() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    setUserPosts(getUserPosts("free"));
+    const mockHidden = getMockOverrides();
+    setUserPosts(getUserPosts("free").filter((p) => !p.hidden));
+    // mock 숨김 필터는 렌더 시 적용
+    void mockHidden;
   }, []);
 
-  const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...freePosts];
+  const mockHidden = getMockOverrides();
+  const visibleMock = freePosts.filter((p) => !mockHidden[p.id]?.hidden);
+  const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...visibleMock];
   const totalPages = Math.max(1, Math.ceil(allPosts.length / PAGE_SIZE));
   const paginated  = allPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 

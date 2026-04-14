@@ -10,7 +10,11 @@ export interface StoredPost extends Omit<Post, "authorGrade" | "imageUrl"> {
   isUserCreated: true;
   contacts?: { phone?: string; kakao?: string; telegram?: string; zalo?: string };
   imageUrls?: string[];
+  hidden?: boolean;
 }
+
+/* mock 게시글 숨김 오버라이드 타입 */
+export type MockOverride = { hidden?: boolean };
 
 export interface StoredComment {
   id: number;
@@ -21,11 +25,12 @@ export interface StoredComment {
 }
 
 /* ── 키 ── */
-const POSTS_KEY     = "vn_posts";
-const COMMENTS_KEY  = "vn_comments";
-const LIKES_KEY     = "vn_post_likes";
-const LIKED_KEY     = "vn_liked_posts";
-const NEXT_ID_KEY   = "vn_next_id";
+const POSTS_KEY       = "vn_posts";
+const COMMENTS_KEY    = "vn_comments";
+const LIKES_KEY       = "vn_post_likes";
+const LIKED_KEY       = "vn_liked_posts";
+const NEXT_ID_KEY     = "vn_next_id";
+const MOCK_OVERRIDES  = "vn_mock_overrides"; // mock 게시글 숨김 오버라이드
 
 /* ── ID 생성 ── */
 function nextId(): number {
@@ -79,6 +84,33 @@ export function addPost(data: {
 export function deletePost(id: number): void {
   const all = parse<StoredPost[]>(POSTS_KEY, []);
   localStorage.setItem(POSTS_KEY, JSON.stringify(all.filter((p) => p.id !== id)));
+}
+
+/** 유저 게시글 필드 업데이트 (type 이동, hidden 토글 등) */
+export function updatePost(id: number, changes: Partial<Pick<StoredPost, "type" | "hidden">>): void {
+  const all = parse<StoredPost[]>(POSTS_KEY, []);
+  const idx = all.findIndex((p) => p.id === id);
+  if (idx !== -1) {
+    all[idx] = { ...all[idx], ...changes };
+    localStorage.setItem(POSTS_KEY, JSON.stringify(all));
+  }
+}
+
+/* ── Mock 게시글 오버라이드 ── */
+
+export function getMockOverrides(): Record<number, MockOverride> {
+  return parse<Record<number, MockOverride>>(MOCK_OVERRIDES, {});
+}
+
+export function setMockHidden(id: number, hidden: boolean): void {
+  const all = getMockOverrides();
+  all[id] = { ...all[id], hidden };
+  localStorage.setItem(MOCK_OVERRIDES, JSON.stringify(all));
+}
+
+export function isMockHidden(id: number): boolean {
+  const all = getMockOverrides();
+  return all[id]?.hidden ?? false;
 }
 
 /* ══ 댓글 ══ */

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import PostCard from "@/components/PostCard";
 import { reviewPosts } from "@/lib/mockData";
-import { getUserPosts, StoredPost } from "@/lib/store";
+import { getUserPosts, getMockOverrides, StoredPost } from "@/lib/store";
 import { Post } from "@/lib/mockData";
 
 const PAGE_SIZE = 10;
@@ -14,10 +14,12 @@ export default function ReviewBoard() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    setUserPosts(getUserPosts("review"));
+    setUserPosts(getUserPosts("review").filter((p) => !p.hidden));
   }, []);
 
-  const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...reviewPosts];
+  const mockHidden = getMockOverrides();
+  const visibleMock = reviewPosts.filter((p) => !mockHidden[p.id]?.hidden);
+  const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...visibleMock];
   const totalPages = Math.max(1, Math.ceil(allPosts.length / PAGE_SIZE));
   const paginated  = allPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
