@@ -40,7 +40,7 @@ export interface RegisterData {
 
 /* ── 시드 계정 ── */
 const SEED_ACCOUNTS: StoredUser[] = [
-  { email: "admin@test.com",    password: "1234", name: "관리자",   memberType: "admin",    points: 9999, grade: "VIP",  createdAt: "2024-01-01" },
+  { email: "asdf1a",            password: "asdf1a", name: "관리자", memberType: "admin",    points: 9999, grade: "VIP",  createdAt: "2024-01-01" },
   { email: "business@test.com", password: "1234", name: "업소회원", memberType: "business", businessName: "테스트업소", points: 500, grade: "우수", createdAt: "2024-01-01" },
   { email: "user@test.com",     password: "1234", name: "일반회원", memberType: "general",  points: 100, grade: "일반", createdAt: "2024-01-01" },
 ];
