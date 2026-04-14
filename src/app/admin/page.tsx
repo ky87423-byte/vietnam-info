@@ -76,6 +76,10 @@ export default function AdminPage() {
   const [editUser, setEditUser] = useState<{ email: string; name: string; points: number; grade: MemberGrade } | null>(null);
   const [editPoints, setEditPoints] = useState("");
 
+  // 회원 상세 모달
+  const [viewUser, setViewUser] = useState<{ name: string; email: string } | null>(null);
+  const [viewUserTab, setViewUserTab] = useState<"posts" | "comments">("posts");
+
   useEffect(() => {
     if (!user) { router.replace("/auth/login"); return; }
     if (user.memberType !== "admin") { router.replace("/"); return; }
@@ -160,9 +164,28 @@ export default function AdminPage() {
     return c.content.toLowerCase().includes(q) || c.author.toLowerCase().includes(q);
   });
 
+  // 검색어와 일치하는 게시글 작성자 이름 집합
+  const authorsMatchingSearch = (() => {
+    const q = userSearch.toLowerCase();
+    if (!q) return null;
+    const matched = new Set<string>();
+    allPosts.forEach(p => {
+      if (
+        p.title.toLowerCase().includes(q) ||
+        ((p as StoredPost).content ?? (p as Post).content ?? "").toLowerCase().includes(q)
+      ) matched.add(p.author);
+    });
+    return matched;
+  })();
+
   const filteredUsers = users.filter((u: { name: string; email: string }) => {
     const q = userSearch.toLowerCase();
-    return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+    if (!q) return true;
+    return (
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (authorsMatchingSearch?.has(u.name) ?? false)
+    );
   });
 
   const userPostsCount = allPosts.filter(p => p.source === "user").length;
@@ -423,7 +446,7 @@ export default function AdminPage() {
         <div className="space-y-4">
           <input
             type="text"
-            placeholder="이름 또는 이메일 검색..."
+            placeholder="아이디 · 이름 · 게시글 제목/내용 검색..."
             value={userSearch}
             onChange={e => setUserSearch(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400"
@@ -466,6 +489,12 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => { setViewUser({ name: u.name, email: u.email }); setViewUserTab("posts"); }}
+                            className="text-xs text-gray-600 hover:text-gray-900 font-medium transition-colors px-2 py-1 rounded hover:bg-gray-100"
+                          >
+                            상세
+                          </button>
                           <button
                             onClick={() => { setEditUser({ email: u.email, name: u.name, points: u.points ?? 0, grade: u.grade ?? "새싹" }); setEditPoints(String(u.points ?? 0)); }}
                             className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors px-2 py-1 rounded hover:bg-blue-50"
@@ -598,6 +627,108 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* ── 회원 상세 모달 ── */}
+      {viewUser && (() => {
+        const userPosts = allPosts.filter(p => p.author === viewUser.name);
+        const userComments = comments.filter(c => c.author === viewUser.name);
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl w-full max-w-2xl shadow-xl flex flex-col max-h-[85vh]">
+              {/* 헤더 */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                <div>
+                  <h3 className="font-bold text-gray-900">{viewUser.name}</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">{viewUser.email}</p>
+                </div>
+                <button onClick={() => setViewUser(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+              </div>
+
+              {/* 탭 */}
+              <div className="flex border-b border-gray-100 flex-shrink-0">
+                <button
+                  onClick={() => setViewUserTab("posts")}
+                  className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                    viewUserTab === "posts" ? "border-red-600 text-red-700" : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  게시글 ({userPosts.length})
+                </button>
+                <button
+                  onClick={() => setViewUserTab("comments")}
+                  className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                    viewUserTab === "comments" ? "border-red-600 text-red-700" : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  댓글 ({userComments.length})
+                </button>
+              </div>
+
+              {/* 내용 */}
+              <div className="overflow-y-auto flex-1">
+                {viewUserTab === "posts" && (
+                  userPosts.length === 0 ? (
+                    <p className="text-center text-sm text-gray-400 py-12">작성한 게시글이 없습니다.</p>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {userPosts.map(p => (
+                        <div key={p.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                  p.type === "free" ? "bg-blue-100 text-blue-700" :
+                                  p.type === "review" ? "bg-green-100 text-green-700" :
+                                  "bg-yellow-100 text-yellow-700"
+                                }`}>{typeLabel[p.type]}</span>
+                                {p._hidden && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">숨김</span>}
+                                <span className="text-xs text-gray-400">{p.createdAt}</span>
+                              </div>
+                              <p className="text-sm font-medium text-gray-800 line-clamp-1">{p.title}</p>
+                              <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                                {(p as StoredPost).content ?? (p as Post).content ?? ""}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0 text-xs text-gray-400">
+                              <span>👁 {p.views}</span>
+                              <span className="ml-1">💬 {p.commentCount}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+                {viewUserTab === "comments" && (
+                  userComments.length === 0 ? (
+                    <p className="text-center text-sm text-gray-400 py-12">작성한 댓글이 없습니다.</p>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {userComments.map(c => (
+                        <div key={c.id} className="px-6 py-4 flex items-start gap-3 hover:bg-gray-50 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs text-gray-400">게시글 #{c.postId}</span>
+                              <span className="text-xs text-gray-400">{c.createdAt}</span>
+                            </div>
+                            <p className="text-sm text-gray-700 leading-relaxed">{c.content}</p>
+                          </div>
+                          <button
+                            onClick={() => { deleteComment(c.postId, c.id); refresh(); }}
+                            className="text-xs text-red-400 hover:text-red-600 flex-shrink-0 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── 포인트/등급 수정 모달 ── */}
       {editUser && (
