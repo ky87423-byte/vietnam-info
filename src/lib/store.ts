@@ -29,6 +29,8 @@ const POSTS_KEY       = "vn_posts";
 const COMMENTS_KEY    = "vn_comments";
 const LIKES_KEY       = "vn_post_likes";
 const LIKED_KEY       = "vn_liked_posts";
+const DISLIKES_KEY    = "vn_post_dislikes";
+const DISLIKED_KEY    = "vn_disliked_posts";
 const NEXT_ID_KEY     = "vn_next_id";
 const MOCK_OVERRIDES  = "vn_mock_overrides";
 const PINNED_KEY      = "vn_pinned_posts";
@@ -258,5 +260,63 @@ export function toggleLike(postId: number, baseLikes: number): { count: number; 
   localStorage.setItem(LIKES_KEY, JSON.stringify(likes));
   localStorage.setItem(LIKED_KEY, JSON.stringify(newArr));
 
+  // 추천 클릭 시 비추천 자동 취소
+  if (!wasLiked) {
+    const dislikes = parse<Record<number, number>>(DISLIKES_KEY, {});
+    const dislikedArr = parse<number[]>(DISLIKED_KEY, []);
+    if (dislikedArr.includes(postId)) {
+      dislikes[postId] = Math.max(0, (dislikes[postId] ?? 0) - 1);
+      localStorage.setItem(DISLIKES_KEY, JSON.stringify(dislikes));
+      localStorage.setItem(DISLIKED_KEY, JSON.stringify(dislikedArr.filter(id => id !== postId)));
+    }
+  }
+
   return { count: newCount, liked: newLiked };
+}
+
+/* ══ 비추천 ══ */
+
+export function getDislikeState(postId: number): { count: number; disliked: boolean } {
+  const dislikes = parse<Record<number, number>>(DISLIKES_KEY, {});
+  const dislikedSet = parse<number[]>(DISLIKED_KEY, []);
+  return { count: dislikes[postId] ?? 0, disliked: dislikedSet.includes(postId) };
+}
+
+export function toggleDislike(postId: number, baseLikes: number): { dislikeCount: number; disliked: boolean; likeCount: number; liked: boolean } {
+  const dislikes = parse<Record<number, number>>(DISLIKES_KEY, {});
+  const dislikedArr = parse<number[]>(DISLIKED_KEY, []);
+
+  const cur = dislikes[postId] ?? 0;
+  const wasDisliked = dislikedArr.includes(postId);
+
+  const newDislikeCount = wasDisliked ? cur - 1 : cur + 1;
+  dislikes[postId] = newDislikeCount;
+  const newDislikedArr = wasDisliked
+    ? dislikedArr.filter(id => id !== postId)
+    : [...dislikedArr, postId];
+
+  localStorage.setItem(DISLIKES_KEY, JSON.stringify(dislikes));
+  localStorage.setItem(DISLIKED_KEY, JSON.stringify(newDislikedArr));
+
+  // 비추천 클릭 시 추천 자동 취소
+  let likeCount = getLikeState(postId, baseLikes).count;
+  let liked = false;
+  if (!wasDisliked) {
+    const likes = parse<Record<number, number>>(LIKES_KEY, {});
+    const likedArr = parse<number[]>(LIKED_KEY, []);
+    if (likedArr.includes(postId)) {
+      likeCount = Math.max(0, (likes[postId] ?? baseLikes) - 1);
+      likes[postId] = likeCount;
+      localStorage.setItem(LIKES_KEY, JSON.stringify(likes));
+      localStorage.setItem(LIKED_KEY, JSON.stringify(likedArr.filter(id => id !== postId)));
+    } else {
+      likeCount = getLikeState(postId, baseLikes).count;
+    }
+  } else {
+    const state = getLikeState(postId, baseLikes);
+    likeCount = state.count;
+    liked = state.liked;
+  }
+
+  return { dislikeCount: newDislikeCount, disliked: !wasDisliked, likeCount, liked };
 }

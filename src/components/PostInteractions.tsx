@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { getLikeState, toggleLike, getComments, addComment, deleteComment, addReport, StoredComment, ReportReason, REPORT_REASON_LABELS } from "@/lib/store";
+import { getLikeState, toggleLike, getDislikeState, toggleDislike, getComments, addComment, deleteComment, addReport, StoredComment, ReportReason, REPORT_REASON_LABELS } from "@/lib/store";
 import { POINT_REWARDS } from "@/lib/points";
 
 interface Props {
@@ -12,31 +12,49 @@ interface Props {
   baseCommentCount: number;
   backHref?: string;
   backLabel?: string;
+  showVote?: boolean; // DC갤식 추천/비추천 (자유·후기 게시판용)
 }
 
-export default function PostInteractions({ postId, baseLikes, baseCommentCount, backHref, backLabel = "목록으로" }: Props) {
+export default function PostInteractions({ postId, baseLikes, baseCommentCount, backHref, backLabel = "목록으로", showVote = false }: Props) {
   const { user, awardPoints } = useAuth();
-  const [likeCount, setLikeCount] = useState(baseLikes);
-  const [liked, setLiked]         = useState(false);
-  const [comments, setComments]   = useState<StoredComment[]>([]);
-  const [text, setText]           = useState("");
-  const [error, setError]         = useState("");
+  const [likeCount, setLikeCount]       = useState(baseLikes);
+  const [liked, setLiked]               = useState(false);
+  const [dislikeCount, setDislikeCount] = useState(0);
+  const [disliked, setDisliked]         = useState(false);
+  const [comments, setComments]         = useState<StoredComment[]>([]);
+  const [text, setText]                 = useState("");
+  const [error, setError]               = useState("");
   const [reportTarget, setReportTarget] = useState<{ type: "post" | "comment"; id: number } | null>(null);
   const [reportReason, setReportReason] = useState<ReportReason>("spam");
   const [reportDetail, setReportDetail] = useState("");
   const [reportDone, setReportDone]     = useState(false);
 
   useEffect(() => {
-    const { count, liked } = getLikeState(postId, baseLikes);
-    setLikeCount(count);
-    setLiked(liked);
+    const likeState = getLikeState(postId, baseLikes);
+    setLikeCount(likeState.count);
+    setLiked(likeState.liked);
+    const dislikeState = getDislikeState(postId);
+    setDislikeCount(dislikeState.count);
+    setDisliked(dislikeState.disliked);
     setComments(getComments(postId));
   }, [postId, baseLikes]);
 
   const handleLike = () => {
-    const { count, liked } = toggleLike(postId, baseLikes);
-    setLikeCount(count);
-    setLiked(liked);
+    const result = toggleLike(postId, baseLikes);
+    setLikeCount(result.count);
+    setLiked(result.liked);
+    // 추천 클릭 시 비추천 상태도 갱신
+    const ds = getDislikeState(postId);
+    setDislikeCount(ds.count);
+    setDisliked(ds.disliked);
+  };
+
+  const handleDislike = () => {
+    const result = toggleDislike(postId, baseLikes);
+    setDislikeCount(result.dislikeCount);
+    setDisliked(result.disliked);
+    setLikeCount(result.likeCount);
+    setLiked(result.liked);
   };
 
   const handleReport = () => {
@@ -78,18 +96,60 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
 
   return (
     <div className="w-full">
-      {/* 좋아요 + 신고 + 목록 버튼 행 */}
-      <div className="flex gap-3 mb-6 flex-wrap">
-        <button
-          onClick={handleLike}
-          className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm transition-colors ${
-            liked
-              ? "border-red-300 bg-red-50 text-red-600"
-              : "border-gray-200 text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          {liked ? "❤️" : "🤍"} 좋아요 {likeCount}
-        </button>
+      {/* 추천/비추천 or 좋아요 + 신고 + 목록 */}
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        {showVote ? (
+          /* DC갤 스타일 추천/비추천 */
+          <div className="flex items-stretch rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+            {/* 추천 */}
+            <button
+              onClick={handleLike}
+              className={`flex flex-col items-center justify-center px-6 py-3 gap-1 transition-colors min-w-[80px] ${
+                liked
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/>
+              </svg>
+              <span className="text-sm font-bold leading-none">{likeCount}</span>
+              <span className="text-xs leading-none opacity-80">추천</span>
+            </button>
+
+            {/* 구분선 */}
+            <div className="w-px bg-gray-200" />
+
+            {/* 비추천 */}
+            <button
+              onClick={handleDislike}
+              className={`flex flex-col items-center justify-center px-6 py-3 gap-1 transition-colors min-w-[80px] ${
+                disliked
+                  ? "bg-gray-600 text-white"
+                  : "bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/>
+              </svg>
+              <span className="text-sm font-bold leading-none">{dislikeCount}</span>
+              <span className="text-xs leading-none opacity-80">비추천</span>
+            </button>
+          </div>
+        ) : (
+          /* 홍보 게시판용 단순 좋아요 */
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm transition-colors ${
+              liked
+                ? "border-red-300 bg-red-50 text-red-600"
+                : "border-gray-200 text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {liked ? "❤️" : "🤍"} 좋아요 {likeCount}
+          </button>
+        )}
+
         {user && (
           <button
             onClick={() => setReportTarget({ type: "post", id: postId })}

@@ -69,7 +69,7 @@ export default function FreePostDetail() {
         </div>
 
         <div className="px-6 pb-6">
-          <PostInteractions postId={post.id} baseLikes={post.likes} baseCommentCount={0} backHref="/board/free" />
+          <PostInteractions postId={post.id} baseLikes={post.likes} baseCommentCount={0} backHref="/board/free" showVote />
         </div>
       </div>
     </div>

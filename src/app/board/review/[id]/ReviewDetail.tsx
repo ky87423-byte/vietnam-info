@@ -87,7 +87,7 @@ export default function ReviewDetail() {
         </div>
 
         <div className="px-6 pb-6">
-          <PostInteractions postId={post.id} baseLikes={post.likes} baseCommentCount={0} backHref="/board/review" />
+          <PostInteractions postId={post.id} baseLikes={post.likes} baseCommentCount={0} backHref="/board/review" showVote />
         </div>
       </div>
     </div>

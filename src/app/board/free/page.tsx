@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { freePosts, gradeColors } from "@/lib/mockData";
-import { getUserPosts, getMockOverrides, getPinnedPosts, StoredPost } from "@/lib/store";
+import { getUserPosts, getMockOverrides, getPinnedPosts, getLikeState, StoredPost } from "@/lib/store";
 import { Post } from "@/lib/mockData";
 
 const PAGE_SIZE = 15;
@@ -48,58 +48,75 @@ export default function FreeBoard() {
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3 hidden sm:table-cell w-12">번호</th>
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">제목</th>
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3 hidden md:table-cell w-24">작성자</th>
+              <th className="text-center text-xs font-semibold text-gray-500 px-4 py-3 hidden sm:table-cell w-14">추천</th>
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3 hidden sm:table-cell w-16">조회</th>
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3 hidden md:table-cell w-20">날짜</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {pinnedPosts.map((post) => (
-              <tr key={`pin-${post.id}`} className="bg-red-50 hover:bg-red-100 transition-colors">
-                <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">📌</td>
-                <td className="px-4 py-3">
-                  <Link href={`/board/free/${post.id}`}
-                    className="text-sm font-medium text-red-700 hover:text-red-900 transition-colors">
-                    {post.title}
-                    {post.commentCount > 0 && (
-                      <span className="ml-1.5 text-xs text-red-500">[{post.commentCount}]</span>
-                    )}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell">
-                  <span className="text-xs text-gray-600">{post.author}</span>
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell">{post.views.toLocaleString()}</td>
-                <td className="px-4 py-3 text-xs text-gray-400 hidden md:table-cell">{post.createdAt}</td>
-              </tr>
-            ))}
-            {paginated.map((post, i) => (
-              <tr key={post.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">
-                  {allPosts.length - ((page - 1) * PAGE_SIZE + i)}
-                </td>
-                <td className="px-4 py-3">
-                  <Link href={`/board/free/${post.id}`}
-                    className="text-sm font-medium text-gray-800 hover:text-red-700 transition-colors">
-                    {post.title}
-                    {post.commentCount > 0 && (
-                      <span className="ml-1.5 text-xs text-red-500">[{post.commentCount}]</span>
-                    )}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell">
-                  <div className="flex items-center gap-1.5">
+            {pinnedPosts.map((post) => {
+              const { count: likeCount } = getLikeState(post.id, post.likes);
+              return (
+                <tr key={`pin-${post.id}`} className="bg-red-50 hover:bg-red-100 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">📌</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/board/free/${post.id}`}
+                      className="text-sm font-medium text-red-700 hover:text-red-900 transition-colors">
+                      {post.title}
+                      {post.commentCount > 0 && (
+                        <span className="ml-1.5 text-xs text-red-500">[{post.commentCount}]</span>
+                      )}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
                     <span className="text-xs text-gray-600">{post.author}</span>
-                    {post.authorGrade && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${gradeColors[post.authorGrade]}`}>
-                        {post.authorGrade}
-                      </span>
+                  </td>
+                  <td className="px-4 py-3 text-center hidden sm:table-cell">
+                    {likeCount > 0 && (
+                      <span className="text-xs font-bold text-blue-600">{likeCount}</span>
                     )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell">{post.views.toLocaleString()}</td>
-                <td className="px-4 py-3 text-xs text-gray-400 hidden md:table-cell">{post.createdAt}</td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell">{post.views.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-xs text-gray-400 hidden md:table-cell">{post.createdAt}</td>
+                </tr>
+              );
+            })}
+            {paginated.map((post, i) => {
+              const { count: likeCount } = getLikeState(post.id, post.likes);
+              return (
+                <tr key={post.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">
+                    {allPosts.length - ((page - 1) * PAGE_SIZE + i)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link href={`/board/free/${post.id}`}
+                      className="text-sm font-medium text-gray-800 hover:text-red-700 transition-colors">
+                      {post.title}
+                      {post.commentCount > 0 && (
+                        <span className="ml-1.5 text-xs text-red-500">[{post.commentCount}]</span>
+                      )}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-600">{post.author}</span>
+                      {post.authorGrade && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${gradeColors[post.authorGrade]}`}>
+                          {post.authorGrade}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-center hidden sm:table-cell">
+                    {likeCount > 0 && (
+                      <span className="text-xs font-bold text-blue-600">{likeCount}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell">{post.views.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-xs text-gray-400 hidden md:table-cell">{post.createdAt}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
