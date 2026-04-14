@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { addPost } from "@/lib/store";
+import { POINT_REWARDS } from "@/lib/points";
 import ImageUploader from "@/components/ImageUploader";
 
 export default function FreeWrite() {
@@ -12,7 +13,7 @@ export default function FreeWrite() {
   const [content, setContent]   = useState("");
   const [images, setImages]     = useState<string[]>([]);
   const [error, setError]       = useState("");
-  const { user } = useAuth();
+  const { user, awardPoints } = useAuth();
   const router = useRouter();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -29,7 +30,7 @@ export default function FreeWrite() {
       author: user?.name ?? "익명",
       imageUrls: images.length > 0 ? images : undefined,
     });
-
+    awardPoints(POINT_REWARDS.post);
     router.push("/board/free");
   };
 

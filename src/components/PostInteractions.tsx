@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { getLikeState, toggleLike, getComments, addComment, deleteComment, StoredComment } from "@/lib/store";
+import { getLikeState, toggleLike, getComments, addComment, deleteComment, addReport, StoredComment, ReportReason, REPORT_REASON_LABELS } from "@/lib/store";
+import { POINT_REWARDS } from "@/lib/points";
 
 interface Props {
   postId: number;
@@ -14,12 +15,16 @@ interface Props {
 }
 
 export default function PostInteractions({ postId, baseLikes, baseCommentCount, backHref, backLabel = "목록으로" }: Props) {
-  const { user } = useAuth();
+  const { user, awardPoints } = useAuth();
   const [likeCount, setLikeCount] = useState(baseLikes);
   const [liked, setLiked]         = useState(false);
   const [comments, setComments]   = useState<StoredComment[]>([]);
   const [text, setText]           = useState("");
   const [error, setError]         = useState("");
+  const [reportTarget, setReportTarget] = useState<{ type: "post" | "comment"; id: number } | null>(null);
+  const [reportReason, setReportReason] = useState<ReportReason>("spam");
+  const [reportDetail, setReportDetail] = useState("");
+  const [reportDone, setReportDone]     = useState(false);
 
   useEffect(() => {
     const { count, liked } = getLikeState(postId, baseLikes);
@@ -34,6 +39,25 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
     setLiked(liked);
   };
 
+  const handleReport = () => {
+    if (!reportTarget) return;
+    addReport({
+      targetType: reportTarget.type,
+      targetId: reportTarget.id,
+      postId: reportTarget.type === "comment" ? postId : undefined,
+      reporterName: user?.name ?? "익명",
+      reason: reportReason,
+      detail: reportDetail.trim() || undefined,
+    });
+    setReportDone(true);
+    setTimeout(() => {
+      setReportTarget(null);
+      setReportReason("spam");
+      setReportDetail("");
+      setReportDone(false);
+    }, 1500);
+  };
+
   const handleDelete = (commentId: number) => {
     deleteComment(postId, commentId);
     setComments((prev) => prev.filter((c) => c.id !== commentId));
@@ -45,6 +69,7 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
     if (!user) return setError("로그인 후 댓글을 작성할 수 있습니다.");
     const c = addComment(postId, user.name, text.trim());
     setComments((prev) => [c, ...prev]);
+    awardPoints(POINT_REWARDS.comment);
     setText("");
     setError("");
   };
@@ -53,8 +78,8 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
 
   return (
     <div className="w-full">
-      {/* 좋아요 + 목록 버튼 행 */}
-      <div className="flex gap-3 mb-6">
+      {/* 좋아요 + 신고 + 목록 버튼 행 */}
+      <div className="flex gap-3 mb-6 flex-wrap">
         <button
           onClick={handleLike}
           className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm transition-colors ${
@@ -65,8 +90,16 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
         >
           {liked ? "❤️" : "🤍"} 좋아요 {likeCount}
         </button>
+        {user && (
+          <button
+            onClick={() => setReportTarget({ type: "post", id: postId })}
+            className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            🚨 신고
+          </button>
+        )}
         {backHref && (
-          <Link href={backHref} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors">
+          <Link href={backHref} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors ml-auto">
             {backLabel}
           </Link>
         )}
@@ -117,15 +150,26 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-medium text-gray-800">{c.author}</span>
                     <span className="text-xs text-gray-400">{c.createdAt}</span>
-                    {(user?.name === c.author || user?.memberType === "admin") && (
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        className="ml-auto text-xs text-gray-400 hover:text-red-500 transition-colors"
-                        aria-label="댓글 삭제"
-                      >
-                        삭제
-                      </button>
-                    )}
+                    <div className="ml-auto flex items-center gap-2">
+                      {user && user.name !== c.author && (
+                        <button
+                          onClick={() => setReportTarget({ type: "comment", id: c.id })}
+                          className="text-xs text-gray-300 hover:text-orange-500 transition-colors"
+                          aria-label="댓글 신고"
+                        >
+                          신고
+                        </button>
+                      )}
+                      {(user?.name === c.author || user?.memberType === "admin") && (
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                          aria-label="댓글 삭제"
+                        >
+                          삭제
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <p className="text-sm text-gray-700 leading-relaxed">{c.content}</p>
                 </div>
@@ -134,6 +178,55 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
           </div>
         )}
       </div>
+      {/* 신고 모달 */}
+      {reportTarget && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
+            {reportDone ? (
+              <div className="text-center py-4">
+                <p className="text-3xl mb-2">✅</p>
+                <p className="font-bold text-gray-800">신고가 접수되었습니다.</p>
+                <p className="text-sm text-gray-500 mt-1">검토 후 조치하겠습니다.</p>
+              </div>
+            ) : (
+              <>
+                <h3 className="font-bold text-gray-900 mb-1">
+                  {reportTarget.type === "post" ? "게시글" : "댓글"} 신고
+                </h3>
+                <p className="text-xs text-gray-400 mb-4">허위 신고 시 이용이 제한될 수 있습니다.</p>
+                <div className="space-y-2 mb-4">
+                  {(Object.entries(REPORT_REASON_LABELS) as [ReportReason, string][]).map(([key, label]) => (
+                    <label key={key} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                      reportReason === key ? "border-red-400 bg-red-50" : "border-gray-200 hover:bg-gray-50"
+                    }`}>
+                      <input type="radio" name="reportReason" value={key} checked={reportReason === key}
+                        onChange={() => setReportReason(key)} className="accent-red-600" />
+                      <span className="text-sm text-gray-700">{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <textarea
+                  value={reportDetail}
+                  onChange={e => setReportDetail(e.target.value)}
+                  placeholder="추가 설명 (선택사항)"
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-lg p-2.5 text-sm resize-none focus:outline-none focus:border-red-400 mb-4"
+                />
+                <div className="flex gap-3 justify-end">
+                  <button onClick={() => setReportTarget(null)}
+                    className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                    취소
+                  </button>
+                  <button onClick={handleReport}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors">
+                    신고 제출
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

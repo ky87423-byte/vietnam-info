@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { freePosts, gradeColors } from "@/lib/mockData";
-import { getUserPosts, getMockOverrides, StoredPost } from "@/lib/store";
+import { getUserPosts, getMockOverrides, getPinnedPosts, StoredPost } from "@/lib/store";
 import { Post } from "@/lib/mockData";
 
 const PAGE_SIZE = 15;
@@ -21,9 +21,12 @@ export default function FreeBoard() {
 
   const mockHidden = getMockOverrides();
   const visibleMock = freePosts.filter((p) => !mockHidden[p.id]?.hidden);
+  const pinnedIds = new Set(getPinnedPosts().free);
   const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...visibleMock];
-  const totalPages = Math.max(1, Math.ceil(allPosts.length / PAGE_SIZE));
-  const paginated  = allPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pinnedPosts = allPosts.filter(p => pinnedIds.has(p.id));
+  const normalPosts = allPosts.filter(p => !pinnedIds.has(p.id));
+  const totalPages = Math.max(1, Math.ceil(normalPosts.length / PAGE_SIZE));
+  const paginated  = normalPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -50,6 +53,25 @@ export default function FreeBoard() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
+            {pinnedPosts.map((post) => (
+              <tr key={`pin-${post.id}`} className="bg-red-50 hover:bg-red-100 transition-colors">
+                <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">📌</td>
+                <td className="px-4 py-3">
+                  <Link href={`/board/free/${post.id}`}
+                    className="text-sm font-medium text-red-700 hover:text-red-900 transition-colors">
+                    {post.title}
+                    {post.commentCount > 0 && (
+                      <span className="ml-1.5 text-xs text-red-500">[{post.commentCount}]</span>
+                    )}
+                  </Link>
+                </td>
+                <td className="px-4 py-3 hidden md:table-cell">
+                  <span className="text-xs text-gray-600">{post.author}</span>
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell">{post.views.toLocaleString()}</td>
+                <td className="px-4 py-3 text-xs text-gray-400 hidden md:table-cell">{post.createdAt}</td>
+              </tr>
+            ))}
             {paginated.map((post, i) => (
               <tr key={post.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">

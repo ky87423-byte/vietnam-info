@@ -7,11 +7,14 @@ import { useAuth } from "@/lib/auth-context";
 import {
   getUserPosts, deletePost, getAllComments, deleteComment,
   updatePost, getMockOverrides, setMockHidden,
-  StoredPost, StoredComment,
+  getReports, updateReportStatus, togglePinPost, getPinnedPosts,
+  StoredPost, StoredComment, Report, REPORT_REASON_LABELS,
 } from "@/lib/store";
 import { freePosts, reviewPosts, promotionPosts, Post } from "@/lib/mockData";
+import { GRADE_THRESHOLDS } from "@/lib/points";
+import type { MemberGrade } from "@/lib/mockData";
 
-type Tab = "dashboard" | "posts" | "comments" | "users";
+type Tab = "dashboard" | "posts" | "comments" | "users" | "reports";
 type AnyPost = (Post | StoredPost) & { source: "mock" | "user"; _hidden?: boolean };
 type BoardType = "free" | "review" | "promotion";
 
@@ -48,7 +51,7 @@ const memberBadge: Record<string, string> = {
 };
 
 export default function AdminPage() {
-  const { user } = useAuth();
+  const { user, adminSetPoints, adminSetGrade } = useAuth();
   const router   = useRouter();
 
   const [tab, setTab]               = useState<Tab>("dashboard");
@@ -59,6 +62,8 @@ export default function AdminPage() {
   const [commentSearch, setCommentSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [showHidden, setShowHidden] = useState(false);
+  const [reports, setReports]       = useState<Report[]>([]);
+  const [pinnedPosts, setPinnedPosts] = useState<Record<number, boolean>>({});
 
   // 이동 모달
   const [moveTarget, setMoveTarget] = useState<AnyPost | null>(null);
@@ -66,6 +71,10 @@ export default function AdminPage() {
 
   // 삭제 확인 모달
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: string | number } | null>(null);
+
+  // 포인트/등급 수정 모달
+  const [editUser, setEditUser] = useState<{ email: string; name: string; points: number; grade: MemberGrade } | null>(null);
+  const [editPoints, setEditPoints] = useState("");
 
   useEffect(() => {
     if (!user) { router.replace("/auth/login"); return; }
@@ -88,6 +97,11 @@ export default function AdminPage() {
     ));
     setComments(getAllComments());
     setUsers(loadUsers());
+    setReports(getReports());
+    const pinned = getPinnedPosts();
+    const pinnedMap: Record<number, boolean> = {};
+    [...(pinned.free ?? []), ...(pinned.review ?? []), ...(pinned.promotion ?? [])].forEach(id => { pinnedMap[id] = true; });
+    setPinnedPosts(pinnedMap);
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -103,6 +117,12 @@ export default function AdminPage() {
       setMockHidden(p.id, nextHidden);
     }
     refresh();
+  };
+
+  /* ── 핀 토글 ── */
+  const handleTogglePin = (p: AnyPost) => {
+    togglePinPost(p.id, p.type as BoardType);
+    setPinnedPosts(prev => ({ ...prev, [p.id]: !prev[p.id] }));
   };
 
   /* ── 이동 확정 ── */
@@ -168,6 +188,7 @@ export default function AdminPage() {
           { key: "posts",     label: `게시글 (${allPosts.length})` },
           { key: "comments",  label: `댓글 (${comments.length})` },
           { key: "users",     label: `회원 (${users.length})` },
+          { key: "reports",   label: `신고 (${reports.filter(r => r.status === "pending").length})` },
         ] as { key: Tab; label: string }[]).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
@@ -301,6 +322,18 @@ export default function AdminPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
+                        {/* 핀 고정 */}
+                        <button
+                          onClick={() => handleTogglePin(p)}
+                          title={pinnedPosts[p.id] ? "고정 해제" : "상단 고정"}
+                          className={`text-xs font-medium transition-colors px-2 py-1 rounded ${
+                            pinnedPosts[p.id]
+                              ? "text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50"
+                              : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                          }`}
+                        >
+                          {pinnedPosts[p.id] ? "📌" : "📍"}
+                        </button>
                         {/* 이동 — 유저 게시글만 */}
                         {p.source === "user" && (
                           <button
@@ -401,47 +434,125 @@ export default function AdminPage() {
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">회원</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">이메일</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">등급</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden md:table-cell">가입일</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">유형/등급</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden md:table-cell">포인트</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">관리</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredUsers.map((u: { email: string; name: string; memberType: string; createdAt: string }) => (
-                  <tr key={u.email} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">{u.name[0]}</div>
-                        <span className="font-medium text-gray-800">{u.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{u.email}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${memberBadge[u.memberType] ?? "bg-gray-100 text-gray-600"}`}>
-                        {memberLabel[u.memberType] ?? u.memberType}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 hidden md:table-cell">{u.createdAt}</td>
-                    <td className="px-4 py-3 text-right">
-                      {u.email === user.email ? (
-                        <span className="text-xs text-gray-300">본인</span>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmDelete({ type: "user", id: u.email })}
-                          className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors px-2 py-1 rounded hover:bg-red-50"
-                        >
-                          삭제
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {filteredUsers.map((u: { email: string; name: string; memberType: string; createdAt: string; points: number; grade: MemberGrade }) => {
+                  const gradeInfo = GRADE_THRESHOLDS.find(g => g.grade === u.grade);
+                  return (
+                    <tr key={u.email} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">{u.name[0]}</div>
+                          <span className="font-medium text-gray-800">{u.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{u.email}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${memberBadge[u.memberType] ?? "bg-gray-100 text-gray-600"}`}>
+                            {memberLabel[u.memberType] ?? u.memberType}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${gradeInfo?.color ?? "bg-gray-100 text-gray-600"}`}>
+                            {u.grade ?? "새싹"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 font-medium hidden md:table-cell">
+                        {(u.points ?? 0).toLocaleString()} P
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => { setEditUser({ email: u.email, name: u.name, points: u.points ?? 0, grade: u.grade ?? "새싹" }); setEditPoints(String(u.points ?? 0)); }}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors px-2 py-1 rounded hover:bg-blue-50"
+                          >
+                            포인트
+                          </button>
+                          {u.email !== user.email && (
+                            <button
+                              onClick={() => setConfirmDelete({ type: "user", id: u.email })}
+                              className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors px-2 py-1 rounded hover:bg-red-50"
+                            >
+                              삭제
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filteredUsers.length === 0 && (
                   <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">검색 결과가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── 신고 관리 ── */}
+      {tab === "reports" && (
+        <div className="space-y-4">
+          <div className="flex gap-2 flex-wrap">
+            {(["pending", "resolved", "dismissed"] as const).map(s => (
+              <span key={s} className={`text-xs px-3 py-1.5 rounded-full font-medium ${
+                s === "pending"   ? "bg-red-100 text-red-700"    :
+                s === "resolved"  ? "bg-green-100 text-green-700" :
+                                    "bg-gray-100 text-gray-600"
+              }`}>
+                {s === "pending" ? "대기" : s === "resolved" ? "처리완료" : "기각"} {reports.filter(r => r.status === s).length}
+              </span>
+            ))}
+          </div>
+
+          {reports.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 text-sm">접수된 신고가 없습니다.</div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+              {reports.map(r => (
+                <div key={r.id} className="px-4 py-4 flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        r.status === "pending"   ? "bg-red-100 text-red-700"    :
+                        r.status === "resolved"  ? "bg-green-100 text-green-700" :
+                                                   "bg-gray-100 text-gray-600"
+                      }`}>
+                        {r.status === "pending" ? "대기" : r.status === "resolved" ? "처리완료" : "기각"}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {r.targetType === "post" ? "게시글" : "댓글"} #{r.targetId}
+                      </span>
+                      <span className="text-xs font-medium text-gray-700">{REPORT_REASON_LABELS[r.reason]}</span>
+                      <span className="text-xs text-gray-400">{r.createdAt}</span>
+                    </div>
+                    <p className="text-sm text-gray-600">신고자: {r.reporterName}</p>
+                    {r.detail && <p className="text-xs text-gray-500 mt-0.5">{r.detail}</p>}
+                  </div>
+                  {r.status === "pending" && (
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => { updateReportStatus(r.id, "resolved"); setReports(getReports()); }}
+                        className="text-xs text-green-600 hover:text-green-800 font-medium px-2 py-1 rounded hover:bg-green-50 transition-colors"
+                      >
+                        처리완료
+                      </button>
+                      <button
+                        onClick={() => { updateReportStatus(r.id, "dismissed"); setReports(getReports()); }}
+                        className="text-xs text-gray-500 hover:text-gray-700 font-medium px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        기각
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -482,6 +593,75 @@ export default function AdminPage() {
                 className="px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 transition-colors disabled:opacity-40"
               >
                 이동
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 포인트/등급 수정 모달 ── */}
+      {editUser && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="font-bold text-gray-900 mb-1">포인트 / 등급 수정</h3>
+            <p className="text-sm text-gray-500 mb-4">{editUser.name} ({editUser.email})</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">포인트 직접 입력</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={editPoints}
+                    onChange={e => setEditPoints(e.target.value)}
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-400"
+                    placeholder="포인트 입력"
+                  />
+                  <button
+                    onClick={() => {
+                      const pts = Number(editPoints);
+                      if (!isNaN(pts) && pts >= 0) {
+                        adminSetPoints(editUser.email, pts);
+                        setEditUser(null);
+                        refresh();
+                      }
+                    }}
+                    className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    적용
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">등급 직접 설정</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {GRADE_THRESHOLDS.map(g => (
+                    <button
+                      key={g.grade}
+                      onClick={() => {
+                        adminSetGrade(editUser.email, g.grade);
+                        setEditUser(null);
+                        refresh();
+                      }}
+                      className={`text-xs px-3 py-2 rounded-lg border font-medium transition-colors ${
+                        editUser.grade === g.grade
+                          ? `${g.color} border-current`
+                          : "border-gray-200 text-gray-600 hover:border-gray-400"
+                      }`}
+                    >
+                      {g.label} (≥{g.min.toLocaleString()}P)
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-5">
+              <button onClick={() => setEditUser(null)}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                닫기
               </button>
             </div>
           </div>

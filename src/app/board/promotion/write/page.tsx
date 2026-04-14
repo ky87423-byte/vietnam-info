@@ -5,6 +5,7 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { addPost } from "@/lib/store";
+import { POINT_REWARDS } from "@/lib/points";
 import { Category, District } from "@/lib/mockData";
 import ImageUploader from "@/components/ImageUploader";
 
@@ -400,7 +401,7 @@ export default function PromotionWrite() {
   const [images, setImages]       = useState<string[]>([]);
   const [error, setError]         = useState("");
   const [showAdInfo, setShowAdInfo] = useState(false);
-  const { user } = useAuth();
+  const { user, awardPoints } = useAuth();
   const router   = useRouter();
 
   const updateContact = (type: ContactType, value: string) =>
@@ -430,7 +431,7 @@ export default function PromotionWrite() {
       },
       imageUrls: images.length > 0 ? images : undefined,
     });
-
+    awardPoints(POINT_REWARDS.post);
     router.push("/board/promotion");
   };
 

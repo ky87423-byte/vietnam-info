@@ -30,7 +30,9 @@ const COMMENTS_KEY    = "vn_comments";
 const LIKES_KEY       = "vn_post_likes";
 const LIKED_KEY       = "vn_liked_posts";
 const NEXT_ID_KEY     = "vn_next_id";
-const MOCK_OVERRIDES  = "vn_mock_overrides"; // mock 게시글 숨김 오버라이드
+const MOCK_OVERRIDES  = "vn_mock_overrides";
+const PINNED_KEY      = "vn_pinned_posts";
+const REPORTS_KEY     = "vn_reports";
 
 /* ── ID 생성 ── */
 function nextId(): number {
@@ -160,6 +162,74 @@ export function deleteComment(postId: number, commentId: number): void {
 export function getAllComments(): Array<StoredComment & { postId: number }> {
   const all = parse<Record<number, StoredComment[]>>(COMMENTS_KEY, {});
   return Object.values(all).flat() as Array<StoredComment & { postId: number }>;
+}
+
+/* ══ 공지 고정핀 ══ */
+
+export type PinnedPosts = { free: number[]; review: number[]; promotion: number[] };
+
+export function getPinnedPosts(): PinnedPosts {
+  return parse<PinnedPosts>(PINNED_KEY, { free: [], review: [], promotion: [] });
+}
+
+export function togglePinPost(id: number, type: "free" | "review" | "promotion"): boolean {
+  const pinned = getPinnedPosts();
+  const list   = pinned[type];
+  const isPinned = list.includes(id);
+  pinned[type] = isPinned ? list.filter((x) => x !== id) : [id, ...list];
+  localStorage.setItem(PINNED_KEY, JSON.stringify(pinned));
+  return !isPinned;
+}
+
+/* ══ 신고 기능 ══ */
+
+export type ReportTarget = "post" | "comment";
+export type ReportReason = "spam" | "abuse" | "illegal" | "adult" | "other";
+export type ReportStatus = "pending" | "resolved" | "dismissed";
+
+export interface Report {
+  id: number;
+  targetType: ReportTarget;
+  targetId: number;
+  postId?: number;       // comment 신고 시 해당 게시글 ID
+  reporterName: string;
+  reason: ReportReason;
+  detail?: string;
+  status: ReportStatus;
+  createdAt: string;
+}
+
+export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
+  spam:    "스팸/광고",
+  abuse:   "욕설/비방",
+  illegal: "불법 정보",
+  adult:   "음란/성인",
+  other:   "기타",
+};
+
+export function addReport(data: Omit<Report, "id" | "status" | "createdAt">): Report {
+  const all = parse<Report[]>(REPORTS_KEY, []);
+  const report: Report = {
+    ...data,
+    id:        Date.now(),
+    status:    "pending",
+    createdAt: new Date().toISOString().slice(0, 10),
+  };
+  localStorage.setItem(REPORTS_KEY, JSON.stringify([report, ...all]));
+  return report;
+}
+
+export function getReports(): Report[] {
+  return parse<Report[]>(REPORTS_KEY, []);
+}
+
+export function updateReportStatus(id: number, status: ReportStatus): void {
+  const all = parse<Report[]>(REPORTS_KEY, []);
+  const idx = all.findIndex((r) => r.id === id);
+  if (idx !== -1) {
+    all[idx] = { ...all[idx], status };
+    localStorage.setItem(REPORTS_KEY, JSON.stringify(all));
+  }
 }
 
 /* ══ 좋아요 ══ */

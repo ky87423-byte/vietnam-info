@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PostCard from "@/components/PostCard";
 import { promotionPosts, categoryLabels, categoryIcons, Category, District, Post } from "@/lib/mockData";
-import { getUserPosts, getMockOverrides, StoredPost } from "@/lib/store";
+import { getUserPosts, getMockOverrides, getPinnedPosts, StoredPost } from "@/lib/store";
 
 function PromotionBoard() {
   const searchParams = useSearchParams();
@@ -22,6 +22,7 @@ function PromotionBoard() {
 
   const mockHidden = getMockOverrides();
   const visibleMock = promotionPosts.filter((p) => !mockHidden[p.id]?.hidden);
+  const pinnedIds = new Set(getPinnedPosts().promotion);
   const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...visibleMock];
 
   const premiumPosts = allPosts.filter((p) => {
@@ -29,8 +30,11 @@ function PromotionBoard() {
     return selectedCategory === "all" || p.category === selectedCategory;
   });
 
+  const adminPinnedPosts = allPosts.filter(p => pinnedIds.has(p.id) && !p.isPaid);
+
   const regularPosts = allPosts.filter((p) => {
     if (p.isPaid) return false;
+    if (pinnedIds.has(p.id)) return false;
     const catOk = selectedCategory === "all" || p.category === selectedCategory;
     const distOk = selectedDistrict === "all" || p.district === selectedDistrict;
     return catOk && distOk;
@@ -78,6 +82,21 @@ function PromotionBoard() {
             ))}
           </div>
           <div className="border-b border-gray-200 mt-6 mb-4" />
+        </div>
+      )}
+
+      {/* 관리자 고정 게시글 */}
+      {adminPinnedPosts.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-bold text-red-600">📌 고정 게시글</span>
+          </div>
+          <div className="space-y-2">
+            {adminPinnedPosts.map((post) => (
+              <PostCard key={`pin-${post.id}`} post={post} showImage />
+            ))}
+          </div>
+          <div className="border-b border-gray-200 mt-4 mb-4" />
         </div>
       )}
 
