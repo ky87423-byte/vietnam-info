@@ -15,7 +15,6 @@ export default function FreeBoard() {
   useEffect(() => {
     const mockHidden = getMockOverrides();
     setUserPosts(getUserPosts("free").filter((p) => !p.hidden));
-    // mock 숨김 필터는 렌더 시 적용
     void mockHidden;
   }, []);
 
@@ -27,6 +26,100 @@ export default function FreeBoard() {
   const normalPosts = allPosts.filter(p => !pinnedIds.has(p.id));
   const totalPages = Math.max(1, Math.ceil(normalPosts.length / PAGE_SIZE));
   const paginated  = normalPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const renderRow = (post: Post, index: number | "pin", isPinned = false) => {
+    const { count: likeCount } = getLikeState(post.id, post.likes);
+    const rowNum = typeof index === "number"
+      ? allPosts.length - ((page - 1) * PAGE_SIZE + index)
+      : null;
+
+    return (
+      <tr
+        key={`${isPinned ? "pin-" : ""}${post.id}`}
+        className={`border-b border-gray-100 last:border-0 transition-colors ${
+          isPinned ? "bg-red-50 hover:bg-red-100" : "hover:bg-gray-50"
+        }`}
+      >
+        {/* 번호 */}
+        <td className="pl-3 pr-1 py-2.5 text-center w-8 sm:w-12 sm:pl-4">
+          {isPinned
+            ? <span className="text-base leading-none">📌</span>
+            : <span className="text-xs text-gray-400">{rowNum}</span>
+          }
+        </td>
+
+        {/* 제목 + 모바일 메타 */}
+        <td className="px-1 py-2.5 sm:px-3">
+          <Link href={`/board/free/${post.id}`} className="block group">
+            {/* 제목 행 */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className={`text-sm font-medium line-clamp-1 group-hover:text-red-700 transition-colors ${
+                  isPinned ? "text-red-700" : "text-gray-800"
+                }`}>
+                  {post.title}
+                </span>
+                {post.commentCount > 0 && (
+                  <span className="text-xs text-red-500 flex-shrink-0 font-medium">
+                    [{post.commentCount}]
+                  </span>
+                )}
+              </div>
+              {/* 모바일 전용 추천수 */}
+              {likeCount > 0 && (
+                <span className="sm:hidden text-xs font-bold text-blue-600 flex-shrink-0 bg-blue-50 px-1.5 py-0.5 rounded">
+                  {likeCount}
+                </span>
+              )}
+            </div>
+
+            {/* 모바일 전용 메타 라인 */}
+            <div className="flex items-center gap-1 mt-0.5 sm:hidden flex-wrap">
+              <span className="text-xs text-gray-600 font-medium">{post.author}</span>
+              {post.authorGrade && (
+                <span className={`text-xs px-1 py-px rounded-full leading-none ${gradeColors[post.authorGrade]}`}>
+                  {post.authorGrade}
+                </span>
+              )}
+              <span className="text-gray-300">·</span>
+              <span className="text-xs text-gray-400">조회 {post.views.toLocaleString()}</span>
+              <span className="text-gray-300">·</span>
+              <span className="text-xs text-gray-400">{post.createdAt}</span>
+            </div>
+          </Link>
+        </td>
+
+        {/* 작성자 (sm 이상) */}
+        <td className="hidden sm:table-cell px-3 py-2.5 w-24">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-600 truncate max-w-[60px]">{post.author}</span>
+            {post.authorGrade && (
+              <span className={`text-xs px-1 py-px rounded-full leading-none hidden md:inline ${gradeColors[post.authorGrade]}`}>
+                {post.authorGrade}
+              </span>
+            )}
+          </div>
+        </td>
+
+        {/* 추천 (sm 이상) */}
+        <td className="hidden sm:table-cell px-2 py-2.5 text-center w-12">
+          {likeCount > 0 && (
+            <span className="text-xs font-bold text-blue-600">{likeCount}</span>
+          )}
+        </td>
+
+        {/* 조회 (sm 이상) */}
+        <td className="hidden sm:table-cell px-3 py-2.5 text-xs text-gray-400 w-16 text-right">
+          {post.views.toLocaleString()}
+        </td>
+
+        {/* 날짜 (md 이상) */}
+        <td className="hidden md:table-cell px-3 py-2.5 text-xs text-gray-400 w-20 pr-4">
+          {post.createdAt}
+        </td>
+      </tr>
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -45,83 +138,21 @@ export default function FreeBoard() {
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3 hidden sm:table-cell w-12">번호</th>
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">제목</th>
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3 hidden md:table-cell w-24">작성자</th>
-              <th className="text-center text-xs font-semibold text-gray-500 px-4 py-3 hidden sm:table-cell w-14">추천</th>
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3 hidden sm:table-cell w-16">조회</th>
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3 hidden md:table-cell w-20">날짜</th>
+              <th className="pl-3 pr-1 py-2.5 text-xs font-semibold text-gray-400 w-8 sm:w-12 sm:pl-4">번호</th>
+              <th className="px-1 py-2.5 text-left text-xs font-semibold text-gray-500 sm:px-3">제목</th>
+              <th className="hidden sm:table-cell px-3 py-2.5 text-left text-xs font-semibold text-gray-500 w-24">작성자</th>
+              <th className="hidden sm:table-cell px-2 py-2.5 text-center text-xs font-semibold text-gray-500 w-12">추천</th>
+              <th className="hidden sm:table-cell px-3 py-2.5 text-right text-xs font-semibold text-gray-500 w-16">조회</th>
+              <th className="hidden md:table-cell px-3 py-2.5 text-left text-xs font-semibold text-gray-500 w-20 pr-4">날짜</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
-            {pinnedPosts.map((post) => {
-              const { count: likeCount } = getLikeState(post.id, post.likes);
-              return (
-                <tr key={`pin-${post.id}`} className="bg-red-50 hover:bg-red-100 transition-colors">
-                  <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">📌</td>
-                  <td className="px-4 py-3">
-                    <Link href={`/board/free/${post.id}`}
-                      className="text-sm font-medium text-red-700 hover:text-red-900 transition-colors">
-                      {post.title}
-                      {post.commentCount > 0 && (
-                        <span className="ml-1.5 text-xs text-red-500">[{post.commentCount}]</span>
-                      )}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell">
-                    <span className="text-xs text-gray-600">{post.author}</span>
-                  </td>
-                  <td className="px-4 py-3 text-center hidden sm:table-cell">
-                    {likeCount > 0 && (
-                      <span className="text-xs font-bold text-blue-600">{likeCount}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell">{post.views.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400 hidden md:table-cell">{post.createdAt}</td>
-                </tr>
-              );
-            })}
-            {paginated.map((post, i) => {
-              const { count: likeCount } = getLikeState(post.id, post.likes);
-              return (
-                <tr key={post.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-sm text-gray-400 hidden sm:table-cell">
-                    {allPosts.length - ((page - 1) * PAGE_SIZE + i)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link href={`/board/free/${post.id}`}
-                      className="text-sm font-medium text-gray-800 hover:text-red-700 transition-colors">
-                      {post.title}
-                      {post.commentCount > 0 && (
-                        <span className="ml-1.5 text-xs text-red-500">[{post.commentCount}]</span>
-                      )}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-600">{post.author}</span>
-                      {post.authorGrade && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${gradeColors[post.authorGrade]}`}>
-                          {post.authorGrade}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-center hidden sm:table-cell">
-                    {likeCount > 0 && (
-                      <span className="text-xs font-bold text-blue-600">{likeCount}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell">{post.views.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400 hidden md:table-cell">{post.createdAt}</td>
-                </tr>
-              );
-            })}
+          <tbody>
+            {pinnedPosts.map((post) => renderRow(post, "pin", true))}
+            {paginated.map((post, i) => renderRow(post, i))}
           </tbody>
         </table>
       </div>
 
-      {/* 페이지네이션 */}
       {totalPages > 1 && (
         <div className="flex justify-center gap-1 mt-6">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
