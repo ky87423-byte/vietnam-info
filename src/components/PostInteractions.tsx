@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { getLikeState, toggleLike, getDislikeState, toggleDislike, getComments, addComment, deleteComment, addReport, StoredComment, ReportReason, REPORT_REASON_LABELS } from "@/lib/store";
-import { POINT_REWARDS } from "@/lib/points";
+import { getPointRewards } from "@/lib/points";
 
 interface Props {
   postId: number;
@@ -87,7 +87,7 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
     if (!user) return setError("로그인 후 댓글을 작성할 수 있습니다.");
     const c = addComment(postId, user.name, text.trim());
     setComments((prev) => [c, ...prev]);
-    awardPoints(POINT_REWARDS.comment);
+    awardPoints(getPointRewards().comment);
     setText("");
     setError("");
   };

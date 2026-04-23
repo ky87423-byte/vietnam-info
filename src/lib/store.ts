@@ -90,8 +90,11 @@ export function deletePost(id: number): void {
   localStorage.setItem(POSTS_KEY, JSON.stringify(all.filter((p) => p.id !== id)));
 }
 
-/** 유저 게시글 필드 업데이트 (type 이동, hidden 토글 등) */
-export function updatePost(id: number, changes: Partial<Pick<StoredPost, "type" | "hidden">>): void {
+/** 유저 게시글 필드 업데이트 (type 이동, hidden 토글, 내용 수정 등) */
+export function updatePost(
+  id: number,
+  changes: Partial<Pick<StoredPost, "type" | "hidden" | "title" | "content" | "imageUrls" | "category" | "district" | "rating" | "contacts">>
+): void {
   const all = parse<StoredPost[]>(POSTS_KEY, []);
   const idx = all.findIndex((p) => p.id === id);
   if (idx !== -1) {

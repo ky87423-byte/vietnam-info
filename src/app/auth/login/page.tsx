@@ -67,10 +67,6 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="flex items-center justify-end text-xs text-gray-500">
-            <Link href="#" className="hover:text-red-700">비밀번호 찾기</Link>
-          </div>
-
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
               {error}
@@ -128,6 +124,12 @@ export default function LoginPage() {
             </Link>
           </div>
         </form>
+
+        <div className="text-center mt-4">
+          <Link href="/auth/forgot-password" className="text-sm text-gray-500 hover:text-red-700 transition-colors">
+            비밀번호를 잊으셨나요?
+          </Link>
+        </div>
       </div>
     </div>
   );

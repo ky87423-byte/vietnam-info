@@ -2,27 +2,39 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { promotionPosts, categoryLabels, categoryIcons, Post } from "@/lib/mockData";
-import { getUserPosts } from "@/lib/store";
+import { getUserPosts, deletePost } from "@/lib/store";
+import { useAuth } from "@/lib/auth-context";
 import PostInteractions from "@/components/PostInteractions";
-import ImageGallery from "@/components/ImageGallery";
+import MediaGallery from "@/components/MediaGallery";
 
-type PostWithImages = Post & { imageUrls?: string[] };
+type PostWithImages = Post & { imageUrls?: string[]; isUserCreated?: boolean };
 
 export default function PromotionDetail() {
   const { id } = useParams<{ id: string }>();
-  const [post, setPost] = useState<PostWithImages | null>(null);
+  const router = useRouter();
+  const { user } = useAuth();
+  const [post, setPost]               = useState<PostWithImages | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     const numId = Number(id);
     const mock  = promotionPosts.find((p) => p.id === numId);
     if (mock) { setPost(mock); return; }
-    const user  = getUserPosts("promotion").find((p) => p.id === numId);
-    if (user) { setPost(user as unknown as PostWithImages); return; }
+    const stored = getUserPosts("promotion").find((p) => p.id === numId);
+    if (stored) { setPost(stored as unknown as PostWithImages); return; }
   }, [id]);
 
   if (post === null) return null;
+
+  const isOwner = user && (user.name === post.author || user.memberType === "admin");
+  const canEdit = isOwner && post.isUserCreated;
+
+  const handleDelete = () => {
+    deletePost(Number(id));
+    router.push("/board/promotion");
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -65,9 +77,35 @@ export default function PromotionDetail() {
                 <span className="text-xs text-gray-400">{post.createdAt}</span>
               </div>
             </div>
-            <div className="flex items-center gap-4 text-sm text-gray-400">
-              <span>👁 {post.views.toLocaleString()}</span>
-              <span>💬 {post.commentCount}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4 text-sm text-gray-400">
+                <span>👁 {post.views.toLocaleString()}</span>
+                <span>💬 {post.commentCount}</span>
+              </div>
+              {canEdit && (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/board/promotion/${id}/edit`}
+                    className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    수정
+                  </Link>
+                  {!confirmDelete ? (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="text-xs px-3 py-1.5 border border-red-200 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      삭제
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-500">삭제할까요?</span>
+                      <button onClick={handleDelete} className="text-xs px-2 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">확인</button>
+                      <button onClick={() => setConfirmDelete(false)} className="text-xs px-2 py-1 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">취소</button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -84,7 +122,7 @@ export default function PromotionDetail() {
           {/* 사용자 업로드 이미지 갤러리 */}
           {post.imageUrls && post.imageUrls.length > 0 && (
             <div className="mt-5">
-              <ImageGallery images={post.imageUrls} />
+              <MediaGallery urls={post.imageUrls ?? []} />
             </div>
           )}
 

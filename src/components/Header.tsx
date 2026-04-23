@@ -11,7 +11,7 @@ const BOARD_CATEGORIES: { name: string; href: string; icon: string; key: Categor
   { key: "golf",     name: "골프",   href: "/board/promotion?category=golf",     icon: "⛳" },
   { key: "hotel",    name: "숙소",   href: "/board/promotion?category=hotel",    icon: "🏨" },
   { key: "rent",     name: "렌트카", href: "/board/promotion?category=rent",     icon: "🚗" },
-  { key: "exchange", name: "환전",   href: "/board/promotion?category=exchange", icon: "💱" },
+  { key: "massage",  name: "마사지", href: "/board/promotion?category=massage",  icon: "💆" },
   { key: "etc",      name: "기타",   href: "/board/promotion?category=etc",      icon: "📦" },
 ];
 

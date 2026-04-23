@@ -2,27 +2,39 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { reviewPosts, gradeColors, categoryLabels, categoryIcons, Post } from "@/lib/mockData";
-import { getUserPosts } from "@/lib/store";
+import { getUserPosts, deletePost } from "@/lib/store";
+import { useAuth } from "@/lib/auth-context";
 import PostInteractions from "@/components/PostInteractions";
-import ImageGallery from "@/components/ImageGallery";
+import MediaGallery from "@/components/MediaGallery";
 
-type PostWithImages = Post & { imageUrls?: string[] };
+type PostWithImages = Post & { imageUrls?: string[]; isUserCreated?: boolean };
 
 export default function ReviewDetail() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const { user } = useAuth();
   const [post, setPost] = useState<PostWithImages | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     const numId = Number(id);
     const mock  = reviewPosts.find((p) => p.id === numId);
     if (mock) { setPost(mock); return; }
-    const user  = getUserPosts("review").find((p) => p.id === numId);
-    if (user) { setPost(user as unknown as PostWithImages); return; }
+    const stored = getUserPosts("review").find((p) => p.id === numId);
+    if (stored) { setPost(stored as unknown as PostWithImages); return; }
   }, [id]);
 
   if (post === null) return null;
+
+  const isOwner = user && (user.name === post.author || user.memberType === "admin");
+  const canEdit = isOwner && post.isUserCreated;
+
+  const handleDelete = () => {
+    deletePost(Number(id));
+    router.push("/board/review");
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -72,9 +84,35 @@ export default function ReviewDetail() {
                 <span className="text-xs text-gray-400">{post.createdAt}</span>
               </div>
             </div>
-            <div className="flex items-center gap-4 text-sm text-gray-400">
-              <span>👁 {post.views.toLocaleString()}</span>
-              <span>💬 {post.commentCount}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4 text-sm text-gray-400">
+                <span>👁 {post.views.toLocaleString()}</span>
+                <span>💬 {post.commentCount}</span>
+              </div>
+              {canEdit && (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/board/review/${id}/edit`}
+                    className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    수정
+                  </Link>
+                  {!confirmDelete ? (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="text-xs px-3 py-1.5 border border-red-200 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      삭제
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-500">삭제할까요?</span>
+                      <button onClick={handleDelete} className="text-xs px-2 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">확인</button>
+                      <button onClick={() => setConfirmDelete(false)} className="text-xs px-2 py-1 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">취소</button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -82,7 +120,7 @@ export default function ReviewDetail() {
         <div className="p-6 min-h-40 space-y-5">
           <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{post.content}</p>
           {post.imageUrls && post.imageUrls.length > 0 && (
-            <ImageGallery images={post.imageUrls} />
+            <MediaGallery urls={post.imageUrls} />
           )}
         </div>
 

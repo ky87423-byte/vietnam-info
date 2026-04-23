@@ -11,7 +11,7 @@ import {
   StoredPost, StoredComment, Report, REPORT_REASON_LABELS,
 } from "@/lib/store";
 import { freePosts, reviewPosts, promotionPosts, Post } from "@/lib/mockData";
-import { GRADE_THRESHOLDS } from "@/lib/points";
+import { GRADE_THRESHOLDS, getPointRewards, savePointRewards, DEFAULT_POINT_REWARDS, PointRewards } from "@/lib/points";
 import type { MemberGrade } from "@/lib/mockData";
 
 type Tab = "dashboard" | "posts" | "comments" | "users" | "reports";
@@ -80,6 +80,10 @@ export default function AdminPage() {
   const [viewUser, setViewUser] = useState<{ name: string; email: string } | null>(null);
   const [viewUserTab, setViewUserTab] = useState<"posts" | "comments">("posts");
 
+  // 포인트 설정
+  const [pointRewards, setPointRewards] = useState<PointRewards>(DEFAULT_POINT_REWARDS);
+  const [pointSaved, setPointSaved] = useState(false);
+
   useEffect(() => {
     if (!user) { router.replace("/auth/login"); return; }
     if (user.memberType !== "admin") { router.replace("/"); return; }
@@ -108,7 +112,10 @@ export default function AdminPage() {
     setPinnedPosts(pinnedMap);
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+    setPointRewards(getPointRewards());
+  }, [refresh]);
 
   if (!user || user.memberType !== "admin") return null;
 
@@ -285,6 +292,60 @@ export default function AdminPage() {
                 </div>
               )
             }
+          </div>
+
+          {/* 포인트 설정 */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="font-bold text-gray-800 mb-4">⚙️ 포인트 지급 설정</h2>
+            <div className="space-y-4">
+              {([
+                { key: "post",    label: "게시글 작성",     icon: "📝" },
+                { key: "comment", label: "댓글 작성",       icon: "💬" },
+                { key: "login",   label: "1일 1회 로그인",  icon: "🔑" },
+              ] as { key: keyof PointRewards; label: string; icon: string }[]).map(({ key, label, icon }) => (
+                <div key={key} className="flex items-center gap-4">
+                  <span className="text-lg">{icon}</span>
+                  <span className="text-sm text-gray-700 w-36 flex-shrink-0">{label}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={9999}
+                      value={pointRewards[key]}
+                      onChange={e => {
+                        const val = Math.max(0, Math.min(9999, Number(e.target.value) || 0));
+                        setPointRewards(prev => ({ ...prev, [key]: val }));
+                        setPointSaved(false);
+                      }}
+                      className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:border-red-400"
+                    />
+                    <span className="text-sm text-gray-500">포인트</span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => {
+                    savePointRewards(pointRewards);
+                    setPointSaved(true);
+                    setTimeout(() => setPointSaved(false), 2000);
+                  }}
+                  className="px-5 py-2 bg-red-700 text-white text-sm font-medium rounded-lg hover:bg-red-800 transition-colors"
+                >
+                  저장
+                </button>
+                <button
+                  onClick={() => {
+                    setPointRewards({ ...DEFAULT_POINT_REWARDS });
+                    setPointSaved(false);
+                  }}
+                  className="px-5 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  기본값 복원
+                </button>
+                {pointSaved && <span className="text-sm text-green-600 font-medium">✓ 저장되었습니다</span>}
+              </div>
+            </div>
           </div>
         </div>
       )}

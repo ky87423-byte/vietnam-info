@@ -30,7 +30,8 @@ const securityHeaders = [
       // data: base64 업로드 이미지 허용, blob: ObjectURL 허용
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://places.googleapis.com",
+      "connect-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://places.googleapis.com https://api.cloudinary.com",
+      "media-src 'self' blob: https://res.cloudinary.com",
       "frame-src https://www.google.com https://maps.google.com",
       "object-src 'none'",
       "base-uri 'self'",
@@ -76,6 +77,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "maps.googleapis.com" },
+      { protocol: "https", hostname: "res.cloudinary.com" },
     ],
   },
 };

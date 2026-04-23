@@ -3,7 +3,7 @@ import AdBanner from "@/components/AdBanner";
 import PostCard from "@/components/PostCard";
 import { promotionPosts, freePosts, reviewPosts, categoryIcons, categoryLabels } from "@/lib/mockData";
 
-const categories = ["food", "golf", "hotel", "rent", "exchange", "etc"] as const;
+const categories = ["food", "golf", "hotel", "rent", "massage", "etc"] as const;
 const districts = ["1군", "2군", "3군", "4군", "5군", "6군", "7군"] as const;
 
 export default function Home() {
@@ -22,7 +22,7 @@ export default function Home() {
           <h1 className="text-3xl sm:text-4xl font-bold mb-3">베트남인포</h1>
           <p className="text-red-100 text-base sm:text-lg mb-6">
             호치민 한인들의 생활 정보 플랫폼<br className="sm:hidden" />
-            — 맛집, 골프, 숙소, 렌트카, 환전까지
+            — 맛집, 골프, 숙소, 렌트카, 마사지까지
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
@@ -180,17 +180,21 @@ export default function Home() {
             <h3 className="font-bold text-gray-800 mb-3 text-sm">🏆 회원 등급 안내</h3>
             <div className="space-y-2">
               {[
-                { grade: "새싹", desc: "가입 ~ 49포인트", color: "text-green-600" },
-                { grade: "일반", desc: "50 ~ 199포인트", color: "text-blue-600" },
-                { grade: "우수", desc: "200 ~ 499포인트", color: "text-purple-600" },
-                { grade: "전문가", desc: "500 ~ 999포인트", color: "text-orange-600" },
-                { grade: "VIP", desc: "1000포인트 이상", color: "text-red-600" },
+                { grade: "새싹", desc: "가입 ~ 99포인트", color: "text-green-600" },
+                { grade: "일반", desc: "100 ~ 499포인트", color: "text-blue-600" },
+                { grade: "우수", desc: "500 ~ 1499포인트", color: "text-purple-600" },
+                { grade: "전문가", desc: "1500 ~ 4999포인트", color: "text-orange-600" },
+                { grade: "VIP", desc: "5000포인트 이상", color: "text-red-600" },
               ].map(({ grade, desc, color }) => (
                 <div key={grade} className="flex items-center justify-between text-sm">
                   <span className={`font-semibold ${color}`}>{grade}</span>
                   <span className="text-gray-500 text-xs">{desc}</span>
                 </div>
               ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
+              <p className="text-xs text-gray-400 font-medium">포인트 적립</p>
+              <p className="text-xs text-gray-500">📝 게시글 작성 · 💬 댓글 작성 · 🔑 매일 로그인</p>
             </div>
           </div>
 

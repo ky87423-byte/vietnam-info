@@ -8,7 +8,7 @@ import {
 } from "@/lib/mockData";
 
 const HCM_CENTER = { lat: 10.7769, lng: 106.7009 };
-const ALL_CATEGORIES: Category[] = ["food", "golf", "hotel", "rent", "exchange", "etc"];
+const ALL_CATEGORIES: Category[] = ["food", "golf", "hotel", "rent", "massage", "etc"];
 
 /* ── 라이브러리 타입 ── */
 type MapsLib   = Awaited<ReturnType<typeof importLibrary<"maps">>>;

@@ -31,7 +31,7 @@ export default function Footer() {
               <li><Link href="/board/promotion?category=golf" className="hover:text-white transition-colors">⛳ 골프</Link></li>
               <li><Link href="/board/promotion?category=hotel" className="hover:text-white transition-colors">🏨 숙소</Link></li>
               <li><Link href="/board/promotion?category=rent" className="hover:text-white transition-colors">🚗 렌트카</Link></li>
-              <li><Link href="/board/promotion?category=exchange" className="hover:text-white transition-colors">💱 환전</Link></li>
+              <li><Link href="/board/promotion?category=massage" className="hover:text-white transition-colors">💆 마사지</Link></li>
             </ul>
           </div>
         </div>

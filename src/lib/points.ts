@@ -9,11 +9,41 @@ export const GRADE_THRESHOLDS: { grade: MemberGrade; min: number; label: string;
   { grade: "새싹",   min: 0,    label: "새싹",   color: "bg-green-100 text-green-700" },
 ];
 
-/* ── 포인트 지급 설정 ── */
-export const POINT_REWARDS = {
+/* ── 포인트 지급 기본값 ── */
+export const DEFAULT_POINT_REWARDS = {
   post:    10,  // 게시글 작성
   comment:  5,  // 댓글 작성
-} as const;
+  login:    5,  // 1일 1회 로그인
+};
+
+export type PointRewards = typeof DEFAULT_POINT_REWARDS;
+
+const POINT_SETTINGS_KEY = "vn_point_settings";
+
+/** 현재 포인트 설정 (관리자가 조정한 값 또는 기본값) */
+export function getPointRewards(): PointRewards {
+  if (typeof window === "undefined") return { ...DEFAULT_POINT_REWARDS };
+  try {
+    const raw = localStorage.getItem(POINT_SETTINGS_KEY);
+    if (!raw) return { ...DEFAULT_POINT_REWARDS };
+    const saved = JSON.parse(raw) as Partial<PointRewards>;
+    return {
+      post:    saved.post    ?? DEFAULT_POINT_REWARDS.post,
+      comment: saved.comment ?? DEFAULT_POINT_REWARDS.comment,
+      login:   saved.login   ?? DEFAULT_POINT_REWARDS.login,
+    };
+  } catch {
+    return { ...DEFAULT_POINT_REWARDS };
+  }
+}
+
+/** 포인트 설정 저장 (관리자용) */
+export function savePointRewards(rewards: PointRewards): void {
+  localStorage.setItem(POINT_SETTINGS_KEY, JSON.stringify(rewards));
+}
+
+/** 하위 호환용 — 기존 코드에서 POINT_REWARDS.post 등으로 접근하는 곳 대응 */
+export const POINT_REWARDS = DEFAULT_POINT_REWARDS;
 
 /* ── 포인트 → 등급 계산 ── */
 export function gradeFromPoints(points: number): MemberGrade {

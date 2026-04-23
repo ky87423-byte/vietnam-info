@@ -5,16 +5,17 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { addPost } from "@/lib/store";
-import { POINT_REWARDS } from "@/lib/points";
+import { getPointRewards } from "@/lib/points";
 import { Category, District } from "@/lib/mockData";
-import ImageUploader from "@/components/ImageUploader";
+import { MediaItem } from "@/lib/cloudinary";
+import MediaUploader from "@/components/ImageUploader";
 
 const categories = [
   { value: "food", label: "🍜 음식점" },
   { value: "golf", label: "⛳ 골프" },
   { value: "hotel", label: "🏨 숙소" },
   { value: "rent", label: "🚗 렌트카" },
-  { value: "exchange", label: "💱 환전" },
+  { value: "massage",  label: "💆 마사지" },
   { value: "etc", label: "📦 기타" },
 ];
 
@@ -398,7 +399,7 @@ export default function PromotionWrite() {
   const [contacts, setContacts] = useState<Record<ContactType, string>>({
     phone: "", kakao: "", telegram: "", zalo: "",
   });
-  const [images, setImages]       = useState<string[]>([]);
+  const [items, setItems]         = useState<MediaItem[]>([]);
   const [error, setError]         = useState("");
   const [showAdInfo, setShowAdInfo] = useState(false);
   const { user, awardPoints } = useAuth();
@@ -415,6 +416,9 @@ export default function PromotionWrite() {
     if (title.trim().length > 200) return setError("업체명은 200자 이내로 입력해주세요.");
     if (!content.trim()) return setError("업체 소개를 입력해주세요.");
     if (content.trim().length > 10000) return setError("업체 소개는 10,000자 이내로 입력해주세요.");
+    if (items.some((i) => i.uploading)) return setError("파일 업로드가 완료될 때까지 기다려주세요.");
+
+    const imageUrls = items.filter((i) => !i.error && !i.uploading).map((i) => i.url);
 
     addPost({
       type: "promotion",
@@ -429,9 +433,9 @@ export default function PromotionWrite() {
         telegram: contacts.telegram || undefined,
         zalo:     contacts.zalo     || undefined,
       },
-      imageUrls: images.length > 0 ? images : undefined,
+      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
     });
-    awardPoints(POINT_REWARDS.post);
+    awardPoints(getPointRewards().post);
     router.push("/board/promotion");
   };
 
@@ -527,12 +531,12 @@ export default function PromotionWrite() {
           <p className="text-xs text-gray-400 mt-2">해당하는 연락처만 입력하세요.</p>
         </div>
 
-        {/* 대표 사진 업로드 */}
-        <ImageUploader
-          images={images}
-          onChange={setImages}
-          maxCount={5}
-          label="대표 사진 업로드"
+        {/* 대표 사진/동영상 업로드 */}
+        <MediaUploader
+          items={items}
+          onChange={setItems}
+          maxCount={10}
+          label="대표 사진/동영상 업로드"
         />
 
         {/* 유료광고 안내 */}

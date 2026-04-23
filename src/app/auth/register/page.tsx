@@ -1,21 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
-function RegisterForm() {
-  const searchParams = useSearchParams();
-  const defaultType = searchParams.get("type") === "business" ? "business" : "general";
+export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
 
-  const [memberType, setMemberType] = useState<"general" | "business">(defaultType);
-  const [email, setEmail]               = useState("");
-  const [nickname, setNickname]         = useState("");
-  const [businessName, setBusinessName] = useState("");
-  const [password, setPassword]         = useState("");
+  // useSearchParams 대신 window.location으로 초기값 결정 (Suspense 불필요)
+  const [memberType, setMemberType] = useState<"general" | "business">(() => {
+    if (typeof window === "undefined") return "general";
+    return new URLSearchParams(window.location.search).get("type") === "business"
+      ? "business"
+      : "general";
+  });
+
+  const [email, setEmail]                     = useState("");
+  const [nickname, setNickname]               = useState("");
+  const [businessName, setBusinessName]       = useState("");
+  const [password, setPassword]               = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [error, setError]   = useState("");
   const [loading, setLoading] = useState(false);
@@ -130,7 +135,9 @@ function RegisterForm() {
 
           {/* 비밀번호 */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">비밀번호 * <span className="text-xs font-normal text-gray-400">(6자 이상)</span></label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              비밀번호 * <span className="text-xs font-normal text-gray-400">(6자 이상)</span>
+            </label>
             <input
               type="password"
               value={password}
@@ -199,13 +206,5 @@ function RegisterForm() {
         </form>
       </div>
     </div>
-  );
-}
-
-export default function RegisterPage() {
-  return (
-    <Suspense>
-      <RegisterForm />
-    </Suspense>
   );
 }

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { MemberType, MemberGrade } from "@/lib/mockData";
-import { gradeFromPoints, GRADE_THRESHOLDS } from "@/lib/points";
+import { gradeFromPoints, GRADE_THRESHOLDS, getPointRewards } from "@/lib/points";
 
 /* ── 타입 ── */
 export interface User {
@@ -25,6 +25,10 @@ interface AuthContextValue {
   register:    (data: RegisterData) => { ok: boolean; error?: string };
   logout:      () => void;
   awardPoints: (pts: number) => void;
+  /** 비밀번호 재설정 — 이메일로 유저 찾아 비밀번호 변경 */
+  resetPassword: (email: string, newPassword: string) => { ok: boolean; error?: string };
+  /** 이메일로 유저 존재 여부 + 이름 확인 */
+  findUserByEmail: (email: string) => { found: boolean; name?: string };
   /** 관리자 전용 — 특정 유저 포인트/등급 직접 변경 */
   adminSetPoints: (email: string, points: number) => void;
   adminSetGrade:  (email: string, grade: MemberGrade) => void;
@@ -109,14 +113,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (email: string, password: string): { ok: boolean; error?: string } => {
     if (!email.trim() || !password) return { ok: false, error: "이메일과 비밀번호를 입력해주세요." };
     const users = loadUsers();
-    const found = users.find(
+    const idx = users.findIndex(
       (u) => u.email.toLowerCase() === email.toLowerCase().trim() && u.password === password
     );
-    if (!found) return { ok: false, error: "이메일 또는 비밀번호가 올바르지 않습니다." };
-    const session = userToSession(found);
+    if (idx === -1) return { ok: false, error: "이메일 또는 비밀번호가 올바르지 않습니다." };
+
+    // 1일 1회 로그인 포인트 지급
+    const today = new Date().toISOString().slice(0, 10);
+    const loginDateKey = `vn_last_login_${users[idx].email}`;
+    const lastLoginDate = localStorage.getItem(loginDateKey);
+    let loginBonus = 0;
+    if (lastLoginDate !== today) {
+      const rewards = getPointRewards();
+      loginBonus = rewards.login;
+      localStorage.setItem(loginDateKey, today);
+      const newPoints = (users[idx].points ?? 0) + loginBonus;
+      const newGrade  = gradeFromPoints(newPoints);
+      users[idx] = { ...users[idx], points: newPoints, grade: newGrade };
+      saveUsers(users);
+    }
+
+    const session = userToSession(users[idx]);
     setUser(session);
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    return { ok: true };
+    return { ok: true, ...(loginBonus > 0 ? { loginBonus } : {}) } as { ok: boolean; error?: string };
   };
 
   /* ── 회원가입 ── */
@@ -132,6 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const users = loadUsers();
     if (users.some((u) => u.email.toLowerCase() === email.toLowerCase().trim()))
       return { ok: false, error: "이미 사용 중인 이메일입니다." };
+    if (users.some((u) => u.name.toLowerCase() === name.trim().toLowerCase()))
+      return { ok: false, error: "이미 사용 중인 닉네임입니다." };
     const newUser: StoredUser = {
       email: email.trim(), password, name: name.trim(),
       memberType, businessName: businessName?.trim(),
@@ -166,6 +188,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
   };
 
+  /* ── 이메일로 유저 존재 여부 확인 ── */
+  const findUserByEmail = (email: string): { found: boolean; name?: string } => {
+    const users = loadUsers();
+    const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase().trim());
+    return found ? { found: true, name: found.name } : { found: false };
+  };
+
+  /* ── 비밀번호 재설정 ── */
+  const resetPassword = (email: string, newPassword: string): { ok: boolean; error?: string } => {
+    if (newPassword.length < 6) return { ok: false, error: "비밀번호는 6자 이상이어야 합니다." };
+    const users = loadUsers();
+    const idx = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase().trim());
+    if (idx === -1) return { ok: false, error: "존재하지 않는 계정입니다." };
+    users[idx] = { ...users[idx], password: newPassword };
+    saveUsers(users);
+    return { ok: true };
+  };
+
   /* ── 관리자: 포인트 직접 설정 ── */
   const adminSetPoints = (email: string, points: number) => {
     const users = loadUsers();
@@ -190,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, awardPoints, adminSetPoints, adminSetGrade }}>
+    <AuthContext.Provider value={{ user, login, register, logout, awardPoints, resetPassword, findUserByEmail, adminSetPoints, adminSetGrade }}>
       {children}
     </AuthContext.Provider>
   );

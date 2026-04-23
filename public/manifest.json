@@ -1,7 +1,7 @@
 {
   "name": "베트남인포 - 호치민 한인 커뮤니티",
   "short_name": "베트남인포",
-  "description": "호치민 한인 커뮤니티 - 음식점, 골프, 숙소, 렌트카, 환전 정보와 게시판",
+  "description": "호치민 한인 커뮤니티 - 음식점, 골프, 숙소, 렌트카, 마사지 정보와 게시판",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

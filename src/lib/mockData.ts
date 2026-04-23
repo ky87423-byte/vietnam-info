@@ -31,10 +31,10 @@ export const nearbyPlaces: NearbyPlace[] = [
   { id: 13, name: "드림렌트카",           category: "rent",     district: "3군", lat: 10.7765, lng: 106.6855, address: "Lý Thường Kiệt, Quận 3", phone: "+84 90 8765 4321" },
   { id: 14, name: "사이공 카렌트",        category: "rent",     district: "1군", lat: 10.7740, lng: 106.7020, address: "Nam Kỳ Khởi Nghĩa, Quận 1", phone: "+84 90 2222 3333" },
   { id: 15, name: "VN 렌터카",           category: "rent",     district: "7군", lat: 10.7310, lng: 106.7190, address: "Nguyễn Văn Linh, Quận 7", phone: "+84 90 4444 5555" },
-  // 환전
-  { id: 16, name: "KEB하나환전소",        category: "exchange", district: "1군", lat: 10.7780, lng: 106.7020, address: "Hàm Nghi, Quận 1",        phone: "+84 28 1111 2222" },
-  { id: 17, name: "신한은행 환전",        category: "exchange", district: "2군", lat: 10.8000, lng: 106.7450, address: "An Phú, Quận 2",          phone: "+84 28 3333 4444" },
-  { id: 18, name: "우리은행 환전",        category: "exchange", district: "7군", lat: 10.7290, lng: 106.7200, address: "Phú Mỹ Hưng, Quận 7",    phone: "+84 28 5555 6666" },
+  // 마사지
+  { id: 16, name: "사이공 힐링마사지",    category: "massage",  district: "1군", lat: 10.7780, lng: 106.7020, address: "Hàm Nghi, Quận 1",        phone: "+84 28 1111 2222" },
+  { id: 17, name: "타오디엔 스파",        category: "massage",  district: "2군", lat: 10.8000, lng: 106.7450, address: "An Phú, Quận 2",          phone: "+84 28 3333 4444" },
+  { id: 18, name: "퓨미흥 웰니스",        category: "massage",  district: "7군", lat: 10.7290, lng: 106.7200, address: "Phú Mỹ Hưng, Quận 7",    phone: "+84 28 5555 6666" },
   // 기타
   { id: 19, name: "호치민 한인마트",      category: "etc",      district: "7군", lat: 10.7330, lng: 106.7220, address: "Nguyễn Đức Cảnh, Quận 7", phone: "+84 28 3344 5566" },
   { id: 20, name: "한국 약국",            category: "etc",      district: "1군", lat: 10.7760, lng: 106.7010, address: "Đồng Khởi, Quận 1",       phone: "+84 90 6666 7777" },
@@ -46,11 +46,11 @@ export const markerColors: Record<Category, string> = {
   golf:     "#22C55E",
   hotel:    "#3B82F6",
   rent:     "#A855F7",
-  exchange: "#F59E0B",
+  massage: "#F59E0B",
   etc:      "#6B7280",
 };
 export type MemberType = "general" | "business" | "admin";
-export type Category = "food" | "golf" | "hotel" | "rent" | "exchange" | "etc";
+export type Category = "food" | "golf" | "hotel" | "rent" | "massage" | "etc";
 export type District = "1군" | "2군" | "3군" | "4군" | "5군" | "6군" | "7군" | "8군" | "9군" | "기타";
 export const ALL_DISTRICTS: District[] = ["1군","2군","3군","4군","5군","6군","7군","8군","9군","기타"];
 
@@ -96,7 +96,7 @@ export const categoryLabels: Record<Category, string> = {
   golf: "골프",
   hotel: "숙소",
   rent: "렌트카",
-  exchange: "환전",
+  massage: "마사지",
   etc: "기타",
 };
 
@@ -105,7 +105,7 @@ export const categoryIcons: Record<Category, string> = {
   golf: "⛳",
   hotel: "🏨",
   rent: "🚗",
-  exchange: "💱",
+  massage: "💆",
   etc: "📦",
 };
 
@@ -235,20 +235,20 @@ export const promotionPosts: Post[] = [
   {
     id: 5,
     type: "promotion",
-    title: "KEB하나환전소 - 최고환율 보장",
-    content: "시중 은행 대비 환율 우대! VND↔KRW 즉시 환전 가능",
-    author: "KEB환전",
-    category: "exchange",
+    title: "사이공 힐링마사지 - 전통 타이·스웨디시",
+    content: "1군 중심가 위치. 타이마사지·스웨디시·발마사지 전문. 한국어 예약 가능",
+    author: "사이공힐링",
+    category: "massage",
     district: "1군",
     views: 541,
     likes: 22,
     commentCount: 3,
     createdAt: "2024-03-06",
     isPaid: true,
-    imageUrl: "https://images.unsplash.com/photo-1580519542036-c47de6196ba5?w=300&h=200&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1600334129128-685c5582fd35?w=300&h=200&fit=crop",
     contacts: {
-      kakao: "keb_exchange",
-      telegram: "@keb_hcm",
+      kakao: "saigon_healing",
+      telegram: "@saigon_massage",
     },
   },
   {
@@ -336,10 +336,10 @@ export const promotionPosts: Post[] = [
   {
     id: 11,
     type: "promotion",
-    title: "신한은행 환전 - 2군 안푸지점",
-    content: "한국인 행원 상주. 계좌 개설·환전 원스톱 서비스",
-    author: "신한환전",
-    category: "exchange",
+    title: "타오디엔 스파 - 2군 프리미엄 마사지",
+    content: "타오디엔 거주 한인 단골 스파. 아로마·딥티슈·커플 마사지. 사전 예약 필수",
+    author: "타오디엔스파",
+    category: "massage",
     district: "2군",
     views: 220,
     likes: 8,
@@ -467,11 +467,11 @@ export const reviewPosts: Post[] = [
   {
     id: 204,
     type: "review",
-    title: "KEB환전소 - 환율 진짜 좋네요",
-    content: "은행보다 훨씬 좋은 환율로 환전했습니다...",
-    author: "환전고수",
+    title: "사이공 힐링마사지 - 타이마사지 최고예요",
+    content: "1군에서 이렇게 실력 좋은 마사지샵은 처음이에요. 가격도 합리적이고 한국어 소통도 돼서 너무 편했습니다.",
+    author: "마사지러버",
     authorGrade: "새싹",
-    category: "exchange",
+    category: "massage",
     district: "1군",
     views: 432,
     likes: 25,
