@@ -4,37 +4,32 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PostCard from "@/components/PostCard";
-import { promotionPosts, categoryLabels, categoryIcons, Category, District, Post } from "@/lib/mockData";
-import { getUserPosts, getMockOverrides, getPinnedPosts, StoredPost } from "@/lib/store";
+import { categoryLabels, categoryIcons, Category, District } from "@/lib/mockData";
+import { getPosts, StoredPost } from "@/lib/store";
 
 function PromotionBoard() {
   const searchParams = useSearchParams();
   const category = searchParams.get("category") as Category | null;
   const district = searchParams.get("district") as District | null;
-  const [userPosts, setUserPosts] = useState<StoredPost[]>([]);
+  const [allPosts, setAllPosts] = useState<StoredPost[]>([]);
 
   useEffect(() => {
-    setUserPosts(getUserPosts("promotion").filter((p) => !p.hidden));
+    getPosts("promotion").then(setAllPosts).catch(() => {});
   }, []);
 
   const selectedCategory = category ?? "all";
   const selectedDistrict = district ?? "all";
-
-  const mockHidden = getMockOverrides();
-  const visibleMock = promotionPosts.filter((p) => !mockHidden[p.id]?.hidden);
-  const pinnedIds = new Set(getPinnedPosts().promotion);
-  const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...visibleMock];
 
   const premiumPosts = allPosts.filter((p) => {
     if (!p.isPaid) return false;
     return selectedCategory === "all" || p.category === selectedCategory;
   });
 
-  const adminPinnedPosts = allPosts.filter(p => pinnedIds.has(p.id) && !p.isPaid);
+  const adminPinnedPosts = allPosts.filter(p => p.isPinned && !p.isPaid);
 
   const regularPosts = allPosts.filter((p) => {
     if (p.isPaid) return false;
-    if (pinnedIds.has(p.id)) return false;
+    if (p.isPinned) return false;
     const catOk = selectedCategory === "all" || p.category === selectedCategory;
     const distOk = selectedDistrict === "all" || p.district === selectedDistrict;
     return catOk && distOk;

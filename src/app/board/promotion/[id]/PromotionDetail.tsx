@@ -3,37 +3,32 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { promotionPosts, categoryLabels, categoryIcons, Post } from "@/lib/mockData";
-import { getUserPosts, deletePost } from "@/lib/store";
+import { categoryLabels, categoryIcons } from "@/lib/mockData";
+import { getPost, deletePost, StoredPost } from "@/lib/store";
 import { useAuth } from "@/lib/auth-context";
 import PostInteractions from "@/components/PostInteractions";
 import MediaGallery from "@/components/MediaGallery";
-
-type PostWithImages = Post & { imageUrls?: string[]; isUserCreated?: boolean };
 
 export default function PromotionDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const [post, setPost]               = useState<PostWithImages | null>(null);
+  const [post, setPost]               = useState<StoredPost | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
-    const numId = Number(id);
-    const mock  = promotionPosts.find((p) => p.id === numId);
-    if (mock) { setPost(mock); return; }
-    const stored = getUserPosts("promotion").find((p) => p.id === numId);
-    if (stored) { setPost(stored as unknown as PostWithImages); return; }
+    getPost(Number(id), true).then(setPost).catch(() => {});
   }, [id]);
 
   if (post === null) return null;
 
-  const isOwner = user && (user.name === post.author || user.memberType === "admin");
-  const canEdit = isOwner && post.isUserCreated;
+  const canEdit = user && (user.id === post.authorId || user.memberType === "admin");
 
-  const handleDelete = () => {
-    deletePost(Number(id));
-    router.push("/board/promotion");
+  const handleDelete = async () => {
+    try {
+      await deletePost(Number(id));
+      router.push("/board/promotion");
+    } catch { /* 삭제 실패 시 무시 */ }
   };
 
   return (
@@ -110,12 +105,6 @@ export default function PromotionDetail() {
           </div>
         </div>
 
-        {/* 대표 이미지 (mockData의 단일 imageUrl) */}
-        {post.imageUrl && (
-          <div className="w-full h-64 sm:h-80 bg-cover bg-center"
-            style={{ backgroundImage: `url(${post.imageUrl})` }} />
-        )}
-
         <div className="p-6">
           <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{post.content}</p>
 
@@ -189,7 +178,7 @@ export default function PromotionDetail() {
         </div>
 
         <div className="px-6 pb-6">
-          <PostInteractions postId={post.id} baseLikes={post.likes} baseCommentCount={0} backHref="/board/promotion" />
+          <PostInteractions postId={post.id} baseLikes={post.likes} baseCommentCount={post.commentCount} backHref="/board/promotion" />
         </div>
       </div>
     </div>

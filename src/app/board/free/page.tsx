@@ -2,35 +2,28 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { freePosts, gradeColors } from "@/lib/mockData";
-import { getUserPosts, getMockOverrides, getPinnedPosts, getLikeState, StoredPost } from "@/lib/store";
-import { Post } from "@/lib/mockData";
+import { gradeColors } from "@/lib/mockData";
+import { getPosts, StoredPost } from "@/lib/store";
 
 const PAGE_SIZE = 15;
 
 export default function FreeBoard() {
-  const [userPosts, setUserPosts] = useState<StoredPost[]>([]);
+  const [posts, setPosts] = useState<StoredPost[]>([]);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    const mockHidden = getMockOverrides();
-    setUserPosts(getUserPosts("free").filter((p) => !p.hidden));
-    void mockHidden;
+    getPosts("free").then(setPosts).catch(() => {});
   }, []);
 
-  const mockHidden = getMockOverrides();
-  const visibleMock = freePosts.filter((p) => !mockHidden[p.id]?.hidden);
-  const pinnedIds = new Set(getPinnedPosts().free);
-  const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...visibleMock];
-  const pinnedPosts = allPosts.filter(p => pinnedIds.has(p.id));
-  const normalPosts = allPosts.filter(p => !pinnedIds.has(p.id));
+  const pinnedPosts = posts.filter(p => p.isPinned);
+  const normalPosts = posts.filter(p => !p.isPinned);
   const totalPages = Math.max(1, Math.ceil(normalPosts.length / PAGE_SIZE));
   const paginated  = normalPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const renderRow = (post: Post, index: number | "pin", isPinned = false) => {
-    const { count: likeCount } = getLikeState(post.id, post.likes);
+  const renderRow = (post: StoredPost, index: number | "pin", isPinned = false) => {
+    const likeCount = post.likes;
     const rowNum = typeof index === "number"
-      ? allPosts.length - ((page - 1) * PAGE_SIZE + index)
+      ? normalPosts.length - ((page - 1) * PAGE_SIZE + index)
       : null;
 
     return (

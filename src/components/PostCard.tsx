@@ -1,13 +1,34 @@
 import Link from "next/link";
-import { Post, categoryLabels, categoryIcons, gradeColors } from "@/lib/mockData";
+import { Category, MemberGrade, categoryLabels, categoryIcons, gradeColors } from "@/lib/mockData";
+
+/** mockData Post / API StoredPost 모두 수용하는 구조적 타입 */
+interface CardPost {
+  id: number;
+  type: string;
+  title: string;
+  content: string;
+  author: string;
+  authorGrade?: MemberGrade;
+  category?: Category | string;
+  district?: string;
+  rating?: number;
+  views: number;
+  commentCount: number;
+  createdAt: string;
+  isPaid?: boolean;
+  imageUrl?: string;
+  imageUrls?: string[];
+}
 
 interface PostCardProps {
-  post: Post;
+  post: CardPost;
   showImage?: boolean;
 }
 
 export default function PostCard({ post, showImage = false }: PostCardProps) {
   const boardPath = post.type === "promotion" ? "promotion" : post.type === "free" ? "free" : "review";
+  const thumbnail = post.imageUrls?.[0] ?? post.imageUrl;
+  const category = post.category as Category | undefined;
 
   return (
     <Link href={`/board/${boardPath}/${post.id}`}>
@@ -20,10 +41,10 @@ export default function PostCard({ post, showImage = false }: PostCardProps) {
         )}
 
         <div className="flex gap-3">
-          {showImage && post.imageUrl && (
+          {showImage && thumbnail && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={post.imageUrl}
+              src={thumbnail}
               alt={post.title}
               loading="lazy"
               decoding="async"
@@ -32,9 +53,9 @@ export default function PostCard({ post, showImage = false }: PostCardProps) {
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              {post.category && (
+              {category && categoryLabels[category] && (
                 <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded-full font-medium">
-                  {categoryIcons[post.category]} {categoryLabels[post.category]}
+                  {categoryIcons[category]} {categoryLabels[category]}
                 </span>
               )}
               {post.district && (

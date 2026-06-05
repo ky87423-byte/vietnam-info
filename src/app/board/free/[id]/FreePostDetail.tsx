@@ -3,37 +3,32 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { freePosts, gradeColors, Post } from "@/lib/mockData";
-import { getUserPosts, deletePost } from "@/lib/store";
+import { gradeColors } from "@/lib/mockData";
+import { getPost, deletePost, StoredPost } from "@/lib/store";
 import { useAuth } from "@/lib/auth-context";
 import PostInteractions from "@/components/PostInteractions";
 import MediaGallery from "@/components/MediaGallery";
-
-type PostWithImages = Post & { imageUrls?: string[]; isUserCreated?: boolean };
 
 export default function FreePostDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const [post, setPost] = useState<PostWithImages | null>(null);
+  const [post, setPost] = useState<StoredPost | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
-    const numId = Number(id);
-    const mock  = freePosts.find((p) => p.id === numId);
-    if (mock) { setPost(mock); return; }
-    const stored = getUserPosts("free").find((p) => p.id === numId);
-    if (stored) { setPost(stored as unknown as PostWithImages); return; }
+    getPost(Number(id), true).then(setPost).catch(() => {});
   }, [id]);
 
   if (post === null) return null;
 
-  const isOwner = user && (user.name === post.author || user.memberType === "admin");
-  const canEdit = isOwner && post.isUserCreated;
+  const canEdit = user && (user.id === post.authorId || user.memberType === "admin");
 
-  const handleDelete = () => {
-    deletePost(Number(id));
-    router.push("/board/free");
+  const handleDelete = async () => {
+    try {
+      await deletePost(Number(id));
+      router.push("/board/free");
+    } catch { /* 삭제 실패 시 무시 */ }
   };
 
   return (
@@ -107,7 +102,7 @@ export default function FreePostDetail() {
         </div>
 
         <div className="px-6 pb-6">
-          <PostInteractions postId={post.id} baseLikes={post.likes} baseCommentCount={0} backHref="/board/free" showVote />
+          <PostInteractions postId={post.id} baseLikes={post.likes} baseDislikes={post.dislikes} baseCommentCount={post.commentCount} backHref="/board/free" showVote />
         </div>
       </div>
     </div>

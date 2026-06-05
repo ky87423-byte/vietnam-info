@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
-import { freePosts } from "@/lib/mockData";
+import { prisma } from "@/lib/prisma";
 import FreePostDetail from "./FreePostDetail";
 
 type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const post = freePosts.find((p) => p.id === Number(id));
+  const numId = Number(id);
+  if (!Number.isInteger(numId)) return { title: "게시글" };
+  const post = await prisma.post.findFirst({
+    where: { id: numId, type: "free", hidden: false, deletedAt: null },
+    select: { title: true, content: true },
+  });
   if (!post) return { title: "게시글" };
   return {
     title: post.title,

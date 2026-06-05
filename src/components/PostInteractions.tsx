@@ -3,24 +3,23 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { getLikeState, toggleLike, getDislikeState, toggleDislike, getComments, addComment, deleteComment, addReport, StoredComment, ReportReason, REPORT_REASON_LABELS } from "@/lib/store";
-import { getPointRewards } from "@/lib/points";
+import { getMyVote, vote, getComments, addComment, deleteComment, addReport, StoredComment, ReportReason, REPORT_REASON_LABELS } from "@/lib/store";
 
 interface Props {
   postId: number;
   baseLikes: number;
+  baseDislikes?: number;
   baseCommentCount: number;
   backHref?: string;
   backLabel?: string;
   showVote?: boolean; // DC갤식 추천/비추천 (자유·후기 게시판용)
 }
 
-export default function PostInteractions({ postId, baseLikes, baseCommentCount, backHref, backLabel = "목록으로", showVote = false }: Props) {
-  const { user, awardPoints } = useAuth();
+export default function PostInteractions({ postId, baseLikes, baseDislikes = 0, baseCommentCount, backHref, backLabel = "목록으로", showVote = false }: Props) {
+  const { user, refreshUser } = useAuth();
   const [likeCount, setLikeCount]       = useState(baseLikes);
-  const [liked, setLiked]               = useState(false);
-  const [dislikeCount, setDislikeCount] = useState(0);
-  const [disliked, setDisliked]         = useState(false);
+  const [dislikeCount, setDislikeCount] = useState(baseDislikes);
+  const [myVote, setMyVote]             = useState<-1 | 0 | 1>(0);
   const [comments, setComments]         = useState<StoredComment[]>([]);
   const [text, setText]                 = useState("");
   const [error, setError]               = useState("");
@@ -30,69 +29,75 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
   const [reportDone, setReportDone]     = useState(false);
 
   useEffect(() => {
-    const likeState = getLikeState(postId, baseLikes);
-    setLikeCount(likeState.count);
-    setLiked(likeState.liked);
-    const dislikeState = getDislikeState(postId);
-    setDislikeCount(dislikeState.count);
-    setDisliked(dislikeState.disliked);
-    setComments(getComments(postId));
-  }, [postId, baseLikes]);
+    setLikeCount(baseLikes);
+    setDislikeCount(baseDislikes);
+    getComments(postId).then(setComments).catch(() => {});
+    getMyVote(postId).then(setMyVote).catch(() => {});
+  }, [postId, baseLikes, baseDislikes]);
 
-  const handleLike = () => {
-    const result = toggleLike(postId, baseLikes);
-    setLikeCount(result.count);
-    setLiked(result.liked);
-    // 추천 클릭 시 비추천 상태도 갱신
-    const ds = getDislikeState(postId);
-    setDislikeCount(ds.count);
-    setDisliked(ds.disliked);
+  const handleVote = async (value: 1 | -1) => {
+    if (!user) return setError("로그인 후 이용할 수 있습니다.");
+    try {
+      const result = await vote(postId, value);
+      setLikeCount(result.likes);
+      setDislikeCount(result.dislikes);
+      setMyVote(result.myVote);
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "요청에 실패했습니다.");
+    }
   };
 
-  const handleDislike = () => {
-    const result = toggleDislike(postId, baseLikes);
-    setDislikeCount(result.dislikeCount);
-    setDisliked(result.disliked);
-    setLikeCount(result.likeCount);
-    setLiked(result.liked);
-  };
-
-  const handleReport = () => {
+  const handleReport = async () => {
     if (!reportTarget) return;
-    addReport({
-      targetType: reportTarget.type,
-      targetId: reportTarget.id,
-      postId: reportTarget.type === "comment" ? postId : undefined,
-      reporterName: user?.name ?? "익명",
-      reason: reportReason,
-      detail: reportDetail.trim() || undefined,
-    });
-    setReportDone(true);
-    setTimeout(() => {
+    try {
+      await addReport({
+        targetType: reportTarget.type,
+        targetId: reportTarget.id,
+        postId: reportTarget.type === "comment" ? postId : undefined,
+        reason: reportReason,
+        detail: reportDetail.trim() || undefined,
+      });
+      setReportDone(true);
+      setTimeout(() => {
+        setReportTarget(null);
+        setReportReason("spam");
+        setReportDetail("");
+        setReportDone(false);
+      }, 1500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "신고에 실패했습니다.");
       setReportTarget(null);
-      setReportReason("spam");
-      setReportDetail("");
-      setReportDone(false);
-    }, 1500);
+    }
   };
 
-  const handleDelete = (commentId: number) => {
-    deleteComment(postId, commentId);
-    setComments((prev) => prev.filter((c) => c.id !== commentId));
+  const handleDelete = async (commentId: number) => {
+    try {
+      await deleteComment(commentId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "삭제에 실패했습니다.");
+    }
   };
 
-  const handleComment = (e: React.FormEvent) => {
+  const handleComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim()) return setError("댓글 내용을 입력해주세요.");
     if (!user) return setError("로그인 후 댓글을 작성할 수 있습니다.");
-    const c = addComment(postId, user.name, text.trim());
-    setComments((prev) => [c, ...prev]);
-    awardPoints(getPointRewards().comment);
-    setText("");
-    setError("");
+    try {
+      const c = await addComment(postId, text.trim());
+      setComments((prev) => [c, ...prev]);
+      void refreshUser(); // 서버에서 지급된 포인트 반영
+      setText("");
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "댓글 작성에 실패했습니다.");
+    }
   };
 
-  const totalComments = comments.length + baseCommentCount;
+  const totalComments = Math.max(comments.length, baseCommentCount);
+  const liked    = myVote === 1;
+  const disliked = myVote === -1;
 
   return (
     <div className="w-full">
@@ -103,7 +108,7 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
           <div className="flex items-stretch rounded-xl overflow-hidden border border-gray-200 shadow-sm">
             {/* 추천 */}
             <button
-              onClick={handleLike}
+              onClick={() => handleVote(1)}
               className={`flex flex-col items-center justify-center px-6 py-3 gap-1 transition-colors min-w-[80px] ${
                 liked
                   ? "bg-blue-600 text-white"
@@ -122,7 +127,7 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
 
             {/* 비추천 */}
             <button
-              onClick={handleDislike}
+              onClick={() => handleVote(-1)}
               className={`flex flex-col items-center justify-center px-6 py-3 gap-1 transition-colors min-w-[80px] ${
                 disliked
                   ? "bg-gray-600 text-white"
@@ -139,7 +144,7 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
         ) : (
           /* 홍보 게시판용 단순 좋아요 */
           <button
-            onClick={handleLike}
+            onClick={() => handleVote(1)}
             className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm transition-colors ${
               liked
                 ? "border-red-300 bg-red-50 text-red-600"
@@ -197,7 +202,7 @@ export default function PostInteractions({ postId, baseLikes, baseCommentCount, 
         </form>
 
         {/* 댓글 목록 */}
-        {comments.length === 0 && baseCommentCount === 0 ? (
+        {comments.length === 0 ? (
           <p className="text-center text-sm text-gray-400 py-4">첫 번째 댓글을 작성해보세요!</p>
         ) : (
           <div className="space-y-4">

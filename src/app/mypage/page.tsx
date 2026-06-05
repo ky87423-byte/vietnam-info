@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { getUserPosts, StoredPost } from "@/lib/store";
+import { getPosts, StoredPost } from "@/lib/store";
 import { GRADE_THRESHOLDS, nextGradeInfo } from "@/lib/points";
 
 const memberTypeLabel: Record<string, string> = {
@@ -32,19 +32,19 @@ const boardHref: Record<string, string> = {
 };
 
 export default function MyPage() {
-  const { user, logout } = useAuth();
+  const { user, ready, logout } = useAuth();
   const router = useRouter();
   const [myPosts, setMyPosts] = useState<StoredPost[]>([]);
   const [tab, setTab] = useState<"all" | "free" | "review" | "promotion">("all");
 
   useEffect(() => {
+    if (!ready) return;
     if (!user) {
       router.replace("/auth/login");
       return;
     }
-    const all = getUserPosts().filter((p) => p.author === user.name);
-    setMyPosts(all);
-  }, [user, router]);
+    getPosts(undefined, { author: user.name }).then(setMyPosts).catch(() => {});
+  }, [user, ready, router]);
 
   if (!user) return null;
 

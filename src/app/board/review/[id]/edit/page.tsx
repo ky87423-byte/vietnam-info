@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { getUserPosts, updatePost } from "@/lib/store";
+import { getPost, updatePost } from "@/lib/store";
 import { Category, District, ALL_DISTRICTS } from "@/lib/mockData";
 import { MediaItem, detectUrlType } from "@/lib/cloudinary";
 import MediaUploader from "@/components/ImageUploader";
@@ -34,31 +34,31 @@ export default function ReviewEdit() {
   const [loaded, setLoaded]           = useState(false);
 
   useEffect(() => {
-    const numId = Number(id);
-    const post = getUserPosts("review").find((p) => p.id === numId);
-    if (!post) { router.replace("/board/review"); return; }
-    if (user && user.name !== post.author && user.memberType !== "admin") {
-      router.replace(`/board/review/${id}`);
-      return;
-    }
-    setTitle(post.title);
-    setContent(post.content);
-    if (post.category) setCategory(post.category as Category);
-    if (post.district) setDistrict(post.district as District);
-    if (post.rating)   setRating(post.rating);
-    if (post.imageUrls) {
-      setItems(
-        post.imageUrls.map((url, i) => ({
-          id: `existing-${i}`,
-          url,
-          type: detectUrlType(url),
-        }))
-      );
-    }
-    setLoaded(true);
+    getPost(Number(id)).then((post) => {
+      if (!post) { router.replace("/board/review"); return; }
+      if (user && user.id !== post.authorId && user.memberType !== "admin") {
+        router.replace(`/board/review/${id}`);
+        return;
+      }
+      setTitle(post.title);
+      setContent(post.content);
+      if (post.category) setCategory(post.category as Category);
+      if (post.district) setDistrict(post.district as District);
+      if (post.rating)   setRating(post.rating);
+      if (post.imageUrls) {
+        setItems(
+          post.imageUrls.map((url, i) => ({
+            id: `existing-${i}`,
+            url,
+            type: detectUrlType(url),
+          }))
+        );
+      }
+      setLoaded(true);
+    }).catch(() => router.replace("/board/review"));
   }, [id, user, router]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rating === 0)  return setError("별점을 선택해주세요.");
     if (!category)     return setError("카테고리를 선택해주세요.");
@@ -71,15 +71,19 @@ export default function ReviewEdit() {
 
     const imageUrls = items.filter((i) => !i.error && !i.uploading).map((i) => i.url);
 
-    updatePost(Number(id), {
-      title: title.trim(),
-      content: content.trim(),
-      category: category as Category,
-      district: district as District,
-      rating,
-      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
-    });
-    router.push(`/board/review/${id}`);
+    try {
+      await updatePost(Number(id), {
+        title: title.trim(),
+        content: content.trim(),
+        category: category as Category,
+        district: district as District,
+        rating,
+        imageUrls,
+      });
+      router.push(`/board/review/${id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "수정에 실패했습니다.");
+    }
   };
 
   if (!loaded) return null;

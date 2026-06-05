@@ -3,34 +3,17 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import PostCard from "@/components/PostCard";
-import { promotionPosts, freePosts, reviewPosts, Post } from "@/lib/mockData";
-import { getUserPosts, StoredPost } from "@/lib/store";
-
-const MOCK_POSTS: Post[] = [...promotionPosts, ...freePosts, ...reviewPosts];
+import { getPosts, StoredPost } from "@/lib/store";
 
 function SearchResults() {
   const searchParams = useSearchParams();
   const q = searchParams.get("q")?.trim() ?? "";
-  const [userPosts, setUserPosts] = useState<StoredPost[]>([]);
+  const [results, setResults] = useState<StoredPost[]>([]);
 
   useEffect(() => {
-    setUserPosts(getUserPosts());
-  }, []);
-
-  const allPosts: Post[] = [...(userPosts as unknown as Post[]), ...MOCK_POSTS];
-
-  const results = q
-    ? allPosts.filter((p) => {
-        const keyword = q.toLowerCase();
-        return (
-          p.title.toLowerCase().includes(keyword) ||
-          p.content.toLowerCase().includes(keyword) ||
-          p.author.toLowerCase().includes(keyword) ||
-          p.district?.toLowerCase().includes(keyword) ||
-          (p.category && p.category.toLowerCase().includes(keyword))
-        );
-      })
-    : [];
+    if (!q) { setResults([]); return; }
+    getPosts(undefined, { q }).then(setResults).catch(() => {});
+  }, [q]);
 
   const promotion = results.filter((p) => p.type === "promotion");
   const free      = results.filter((p) => p.type === "free");

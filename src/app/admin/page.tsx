@@ -5,18 +5,27 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getUserPosts, deletePost, getAllComments, deleteComment,
-  updatePost, getMockOverrides, setMockHidden,
-  getReports, updateReportStatus, togglePinPost, getPinnedPosts,
+  getPosts, deletePost, getAllComments, deleteComment,
+  updatePost, getReports, updateReportStatus, setPinned,
   StoredPost, StoredComment, Report, REPORT_REASON_LABELS,
 } from "@/lib/store";
-import { freePosts, reviewPosts, promotionPosts, Post } from "@/lib/mockData";
-import { GRADE_THRESHOLDS, getPointRewards, savePointRewards, DEFAULT_POINT_REWARDS, PointRewards } from "@/lib/points";
+import { GRADE_THRESHOLDS, DEFAULT_POINT_REWARDS, PointRewards } from "@/lib/points";
 import type { MemberGrade } from "@/lib/mockData";
 
 type Tab = "dashboard" | "posts" | "comments" | "users" | "reports";
-type AnyPost = (Post | StoredPost) & { source: "mock" | "user"; _hidden?: boolean };
+type AnyPost = StoredPost & { _hidden?: boolean };
 type BoardType = "free" | "review" | "promotion";
+
+interface AdminUser {
+  id: number;
+  email: string;
+  name: string;
+  memberType: string;
+  points: number;
+  grade: MemberGrade;
+  status: string;
+  createdAt: string;
+}
 
 const BOARD_LABELS: Record<BoardType, string> = {
   free: "자유게시판",
@@ -24,22 +33,15 @@ const BOARD_LABELS: Record<BoardType, string> = {
   promotion: "홍보게시판",
 };
 
-function loadUsers() {
-  try {
-    const raw = localStorage.getItem("vn_users");
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+async function fetchUsers(): Promise<AdminUser[]> {
+  const res = await fetch("/api/admin/users");
+  if (!res.ok) return [];
+  const data = await res.json() as { users: AdminUser[] };
+  return data.users;
 }
 
-function deleteUser(email: string) {
-  try {
-    const raw = localStorage.getItem("vn_users");
-    if (!raw) return;
-    const users = JSON.parse(raw).filter((u: { email: string }) => u.email !== email);
-    localStorage.setItem("vn_users", JSON.stringify(users));
-    const session = localStorage.getItem("vn_session");
-    if (session && JSON.parse(session).email === email) localStorage.removeItem("vn_session");
-  } catch {}
+async function deleteUser(id: number): Promise<void> {
+  await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
 }
 
 const typeLabel: Record<string, string> = { free: "자유", review: "후기", promotion: "홍보" };
@@ -51,13 +53,13 @@ const memberBadge: Record<string, string> = {
 };
 
 export default function AdminPage() {
-  const { user, adminSetPoints, adminSetGrade } = useAuth();
+  const { user, ready, adminSetPoints, adminSetGrade } = useAuth();
   const router   = useRouter();
 
   const [tab, setTab]               = useState<Tab>("dashboard");
   const [allPosts, setAllPosts]     = useState<AnyPost[]>([]);
-  const [comments, setComments]     = useState<(StoredComment & { postId: number })[]>([]);
-  const [users, setUsers]           = useState<ReturnType<typeof loadUsers>>([]);
+  const [comments, setComments]     = useState<StoredComment[]>([]);
+  const [users, setUsers]           = useState<AdminUser[]>([]);
   const [postSearch, setPostSearch] = useState("");
   const [commentSearch, setCommentSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
@@ -73,7 +75,7 @@ export default function AdminPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: string | number } | null>(null);
 
   // 포인트/등급 수정 모달
-  const [editUser, setEditUser] = useState<{ email: string; name: string; points: number; grade: MemberGrade } | null>(null);
+  const [editUser, setEditUser] = useState<{ id: number; email: string; name: string; points: number; grade: MemberGrade } | null>(null);
   const [editPoints, setEditPoints] = useState("");
 
   // 회원 상세 모달
@@ -85,79 +87,73 @@ export default function AdminPage() {
   const [pointSaved, setPointSaved] = useState(false);
 
   useEffect(() => {
+    if (!ready) return;
     if (!user) { router.replace("/auth/login"); return; }
     if (user.memberType !== "admin") { router.replace("/"); return; }
-  }, [user, router]);
+  }, [user, ready, router]);
 
-  const refresh = useCallback(() => {
-    const overrides = getMockOverrides();
-    const userPosts = getUserPosts();
-    const mock: AnyPost[] = [
-      ...freePosts.map(p  => ({ ...p, source: "mock" as const, _hidden: overrides[p.id]?.hidden ?? false })),
-      ...reviewPosts.map(p => ({ ...p, source: "mock" as const, _hidden: overrides[p.id]?.hidden ?? false })),
-      ...promotionPosts.map(p => ({ ...p, source: "mock" as const, _hidden: overrides[p.id]?.hidden ?? false })),
-    ];
-    const stored: AnyPost[] = userPosts.map(p => ({
-      ...p, source: "user" as const, _hidden: (p as StoredPost).hidden ?? false,
-    }));
-    setAllPosts([...stored, ...mock].sort((a, b) =>
-      (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
-    ));
-    setComments(getAllComments());
-    setUsers(loadUsers());
-    setReports(getReports());
-    const pinned = getPinnedPosts();
-    const pinnedMap: Record<number, boolean> = {};
-    [...(pinned.free ?? []), ...(pinned.review ?? []), ...(pinned.promotion ?? [])].forEach(id => { pinnedMap[id] = true; });
-    setPinnedPosts(pinnedMap);
+  const refresh = useCallback(async () => {
+    try {
+      const [posts, allComments, allUsers, allReports] = await Promise.all([
+        getPosts(undefined, { all: true }),
+        getAllComments(),
+        fetchUsers(),
+        getReports(),
+      ]);
+      setAllPosts(posts.map(p => ({ ...p, _hidden: p.hidden ?? false })));
+      setComments(allComments);
+      setUsers(allUsers);
+      setReports(allReports);
+      const pinnedMap: Record<number, boolean> = {};
+      posts.forEach(p => { if (p.isPinned) pinnedMap[p.id] = true; });
+      setPinnedPosts(pinnedMap);
+    } catch { /* 비로그인/권한 없음 등 — 리다이렉트 useEffect가 처리 */ }
   }, []);
 
   useEffect(() => {
-    refresh();
-    setPointRewards(getPointRewards());
-  }, [refresh]);
+    if (!user || user.memberType !== "admin") return;
+    void refresh();
+    fetch("/api/admin/config")
+      .then(res => res.ok ? res.json() : null)
+      .then((data: { rewards: PointRewards } | null) => {
+        if (data) setPointRewards(data.rewards);
+      })
+      .catch(() => {});
+  }, [refresh, user]);
 
   if (!user || user.memberType !== "admin") return null;
 
   /* ── 숨김 토글 ── */
-  const handleToggleHide = (p: AnyPost) => {
-    const nextHidden = !p._hidden;
-    if (p.source === "user") {
-      updatePost(p.id, { hidden: nextHidden });
-    } else {
-      setMockHidden(p.id, nextHidden);
-    }
-    refresh();
+  const handleToggleHide = async (p: AnyPost) => {
+    await updatePost(p.id, { hidden: !p._hidden });
+    void refresh();
   };
 
   /* ── 핀 토글 ── */
-  const handleTogglePin = (p: AnyPost) => {
-    togglePinPost(p.id, p.type as BoardType);
-    setPinnedPosts(prev => ({ ...prev, [p.id]: !prev[p.id] }));
+  const handleTogglePin = async (p: AnyPost) => {
+    const next = !pinnedPosts[p.id];
+    setPinnedPosts(prev => ({ ...prev, [p.id]: next }));
+    await setPinned(p.id, next);
   };
 
   /* ── 이동 확정 ── */
-  const handleMove = () => {
+  const handleMove = async () => {
     if (!moveTarget) return;
-    if (moveTarget.source === "user") {
-      updatePost(moveTarget.id, { type: moveTo });
-    }
-    // mock 게시글은 이동 불가 (UI에서 비활성화)
+    await updatePost(moveTarget.id, { type: moveTo });
     setMoveTarget(null);
-    refresh();
+    void refresh();
   };
 
   /* ── 삭제 확정 ── */
-  const confirmAndDelete = () => {
+  const confirmAndDelete = async () => {
     if (!confirmDelete) return;
-    if (confirmDelete.type === "post")    deletePost(Number(confirmDelete.id));
-    if (confirmDelete.type === "comment") {
-      const c = comments.find(c => c.id === confirmDelete.id);
-      if (c) deleteComment(c.postId, c.id);
-    }
-    if (confirmDelete.type === "user")    deleteUser(String(confirmDelete.id));
+    try {
+      if (confirmDelete.type === "post")    await deletePost(Number(confirmDelete.id));
+      if (confirmDelete.type === "comment") await deleteComment(Number(confirmDelete.id));
+      if (confirmDelete.type === "user")    await deleteUser(Number(confirmDelete.id));
+    } catch { /* 실패해도 목록 새로고침 */ }
     setConfirmDelete(null);
-    refresh();
+    void refresh();
   };
 
   const filteredPosts = allPosts.filter(p => {
@@ -179,13 +175,13 @@ export default function AdminPage() {
     allPosts.forEach(p => {
       if (
         p.title.toLowerCase().includes(q) ||
-        ((p as StoredPost).content ?? (p as Post).content ?? "").toLowerCase().includes(q)
+        (p.content ?? "").toLowerCase().includes(q)
       ) matched.add(p.author);
     });
     return matched;
   })();
 
-  const filteredUsers = users.filter((u: { name: string; email: string }) => {
+  const filteredUsers = users.filter((u) => {
     const q = userSearch.toLowerCase();
     if (!q) return true;
     return (
@@ -195,7 +191,7 @@ export default function AdminPage() {
     );
   });
 
-  const userPostsCount = allPosts.filter(p => p.source === "user").length;
+  const userPostsCount = allPosts.filter(p => p.authorId != null).length;
   const hiddenCount    = allPosts.filter(p => p._hidden).length;
 
   return (
@@ -254,7 +250,7 @@ export default function AdminPage() {
               ? <p className="text-sm text-gray-400">가입한 회원이 없습니다.</p>
               : (
                 <div className="space-y-2">
-                  {users.slice(0, 5).map((u: { email: string; name: string; memberType: string; createdAt: string }) => (
+                  {users.slice(0, 5).map((u) => (
                     <div key={u.email} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">{u.name[0]}</div>
@@ -280,7 +276,7 @@ export default function AdminPage() {
               ? <p className="text-sm text-gray-400">회원이 작성한 게시글이 없습니다.</p>
               : (
                 <div className="space-y-2">
-                  {allPosts.filter(p => p.source === "user").slice(0, 5).map(p => (
+                  {allPosts.filter(p => p.authorId != null).slice(0, 5).map(p => (
                     <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div>
                         <p className="text-sm font-medium text-gray-800 line-clamp-1">{p.title}</p>
@@ -325,8 +321,12 @@ export default function AdminPage() {
               ))}
               <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
                 <button
-                  onClick={() => {
-                    savePointRewards(pointRewards);
+                  onClick={async () => {
+                    await fetch("/api/admin/config", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(pointRewards),
+                    });
                     setPointSaved(true);
                     setTimeout(() => setPointSaved(false), 2000);
                   }}
@@ -385,7 +385,7 @@ export default function AdminPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredPosts.map(p => (
-                  <tr key={`${p.source}-${p.id}`}
+                  <tr key={p.id}
                     className={`transition-colors ${p._hidden ? "bg-gray-50 opacity-60" : "hover:bg-gray-50"}`}
                   >
                     <td className="px-4 py-3">
@@ -399,9 +399,9 @@ export default function AdminPage() {
                     <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{p.author}</td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        p.source === "user" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                        p.authorId != null ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
                       }`}>
-                        {p.source === "user" ? "회원" : "기본"} · {typeLabel[p.type]}
+                        {p.authorId != null ? "회원" : "기본"} · {typeLabel[p.type]}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -418,15 +418,13 @@ export default function AdminPage() {
                         >
                           {pinnedPosts[p.id] ? "📌" : "📍"}
                         </button>
-                        {/* 이동 — 유저 게시글만 */}
-                        {p.source === "user" && (
-                          <button
-                            onClick={() => { setMoveTarget(p); setMoveTo(p.type as BoardType); }}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors px-2 py-1 rounded hover:bg-blue-50"
-                          >
-                            이동
-                          </button>
-                        )}
+                        {/* 이동 */}
+                        <button
+                          onClick={() => { setMoveTarget(p); setMoveTo(p.type as BoardType); }}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors px-2 py-1 rounded hover:bg-blue-50"
+                        >
+                          이동
+                        </button>
                         {/* 숨김/공개 */}
                         <button
                           onClick={() => handleToggleHide(p)}
@@ -438,15 +436,13 @@ export default function AdminPage() {
                         >
                           {p._hidden ? "공개" : "숨김"}
                         </button>
-                        {/* 삭제 — 유저 게시글만 */}
-                        {p.source === "user" && (
-                          <button
-                            onClick={() => setConfirmDelete({ type: "post", id: p.id })}
-                            className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors px-2 py-1 rounded hover:bg-red-50"
-                          >
-                            삭제
-                          </button>
-                        )}
+                        {/* 삭제 */}
+                        <button
+                          onClick={() => setConfirmDelete({ type: "post", id: p.id })}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors px-2 py-1 rounded hover:bg-red-50"
+                        >
+                          삭제
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -524,10 +520,10 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredUsers.map((u: { email: string; name: string; memberType: string; createdAt: string; points: number; grade: MemberGrade }) => {
+                {filteredUsers.map((u) => {
                   const gradeInfo = GRADE_THRESHOLDS.find(g => g.grade === u.grade);
                   return (
-                    <tr key={u.email} className="hover:bg-gray-50">
+                    <tr key={u.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">{u.name[0]}</div>
@@ -557,14 +553,14 @@ export default function AdminPage() {
                             상세
                           </button>
                           <button
-                            onClick={() => { setEditUser({ email: u.email, name: u.name, points: u.points ?? 0, grade: u.grade ?? "새싹" }); setEditPoints(String(u.points ?? 0)); }}
+                            onClick={() => { setEditUser({ id: u.id, email: u.email, name: u.name, points: u.points ?? 0, grade: u.grade ?? "새싹" }); setEditPoints(String(u.points ?? 0)); }}
                             className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors px-2 py-1 rounded hover:bg-blue-50"
                           >
                             포인트
                           </button>
                           {u.email !== user.email && (
                             <button
-                              onClick={() => setConfirmDelete({ type: "user", id: u.email })}
+                              onClick={() => setConfirmDelete({ type: "user", id: u.id })}
                               className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors px-2 py-1 rounded hover:bg-red-50"
                             >
                               삭제
@@ -626,13 +622,13 @@ export default function AdminPage() {
                   {r.status === "pending" && (
                     <div className="flex gap-2 flex-shrink-0">
                       <button
-                        onClick={() => { updateReportStatus(r.id, "resolved"); setReports(getReports()); }}
+                        onClick={async () => { await updateReportStatus(r.id, "resolved"); setReports(await getReports()); }}
                         className="text-xs text-green-600 hover:text-green-800 font-medium px-2 py-1 rounded hover:bg-green-50 transition-colors"
                       >
                         처리완료
                       </button>
                       <button
-                        onClick={() => { updateReportStatus(r.id, "dismissed"); setReports(getReports()); }}
+                        onClick={async () => { await updateReportStatus(r.id, "dismissed"); setReports(await getReports()); }}
                         className="text-xs text-gray-500 hover:text-gray-700 font-medium px-2 py-1 rounded hover:bg-gray-100 transition-colors"
                       >
                         기각
@@ -747,7 +743,7 @@ export default function AdminPage() {
                               </div>
                               <p className="text-sm font-medium text-gray-800 line-clamp-1">{p.title}</p>
                               <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
-                                {(p as StoredPost).content ?? (p as Post).content ?? ""}
+                                {p.content ?? ""}
                               </p>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0 text-xs text-gray-400">
@@ -775,7 +771,7 @@ export default function AdminPage() {
                             <p className="text-sm text-gray-700 leading-relaxed">{c.content}</p>
                           </div>
                           <button
-                            onClick={() => { deleteComment(c.postId, c.id); refresh(); }}
+                            onClick={async () => { await deleteComment(c.id); void refresh(); }}
                             className="text-xs text-red-400 hover:text-red-600 flex-shrink-0 px-2 py-1 rounded hover:bg-red-50 transition-colors"
                           >
                             삭제
@@ -811,12 +807,12 @@ export default function AdminPage() {
                     placeholder="포인트 입력"
                   />
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const pts = Number(editPoints);
                       if (!isNaN(pts) && pts >= 0) {
-                        adminSetPoints(editUser.email, pts);
+                        await adminSetPoints(editUser.id, pts);
                         setEditUser(null);
-                        refresh();
+                        void refresh();
                       }
                     }}
                     className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium"
@@ -832,10 +828,10 @@ export default function AdminPage() {
                   {GRADE_THRESHOLDS.map(g => (
                     <button
                       key={g.grade}
-                      onClick={() => {
-                        adminSetGrade(editUser.email, g.grade);
+                      onClick={async () => {
+                        await adminSetGrade(editUser.id, g.grade);
                         setEditUser(null);
-                        refresh();
+                        void refresh();
                       }}
                       className={`text-xs px-3 py-2 rounded-lg border font-medium transition-colors ${
                         editUser.grade === g.grade

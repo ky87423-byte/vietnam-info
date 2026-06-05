@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
     if (!emailRegex.test(trimmed)) return setError("올바른 이메일 형식이 아닙니다.");
 
     // 유저 존재 여부 확인
-    const { found, name } = findUserByEmail(trimmed);
+    const { found, name } = await findUserByEmail(trimmed);
     if (!found) return setError("가입되지 않은 이메일입니다.");
 
     setLoading(true);
@@ -148,13 +148,13 @@ export default function ForgotPasswordPage() {
   };
 
   /* ── Step 3: 새 비밀번호 설정 ── */
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (newPw.length < 6) return setError("비밀번호는 6자 이상이어야 합니다.");
     if (newPw !== confirmPw) return setError("비밀번호가 일치하지 않습니다.");
 
-    const result = resetPassword(email.trim(), newPw);
+    const result = await resetPassword(email.trim(), newPw);
     if (!result.ok) return setError(result.error ?? "비밀번호 변경 실패");
 
     setStep("done");

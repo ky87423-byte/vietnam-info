@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { getUserPosts, updatePost, StoredPost } from "@/lib/store";
+import { getPost, updatePost, StoredPost } from "@/lib/store";
 import { Category, District } from "@/lib/mockData";
 import { MediaItem, detectUrlType } from "@/lib/cloudinary";
 import MediaUploader from "@/components/ImageUploader";
@@ -46,41 +46,41 @@ export default function PromotionEdit() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const numId = Number(id);
-    const post = getUserPosts("promotion").find((p) => p.id === numId);
-    if (!post) { router.replace("/board/promotion"); return; }
-    if (user && user.name !== post.author && user.memberType !== "admin") {
-      router.replace(`/board/promotion/${id}`);
-      return;
-    }
-    setTitle(post.title);
-    setContent(post.content);
-    if (post.category) setCategory(post.category);
-    if (post.district) setDistrict(post.district);
-    if (post.contacts) {
-      setContacts({
-        phone:    post.contacts.phone    ?? "",
-        kakao:    post.contacts.kakao    ?? "",
-        telegram: post.contacts.telegram ?? "",
-        zalo:     post.contacts.zalo     ?? "",
-      });
-    }
-    if (post.imageUrls) {
-      setItems(
-        post.imageUrls.map((url, i) => ({
-          id: `existing-${i}`,
-          url,
-          type: detectUrlType(url),
-        }))
-      );
-    }
-    setLoaded(true);
+    getPost(Number(id)).then((post) => {
+      if (!post) { router.replace("/board/promotion"); return; }
+      if (user && user.id !== post.authorId && user.memberType !== "admin") {
+        router.replace(`/board/promotion/${id}`);
+        return;
+      }
+      setTitle(post.title);
+      setContent(post.content);
+      if (post.category) setCategory(post.category);
+      if (post.district) setDistrict(post.district);
+      if (post.contacts) {
+        setContacts({
+          phone:    post.contacts.phone    ?? "",
+          kakao:    post.contacts.kakao    ?? "",
+          telegram: post.contacts.telegram ?? "",
+          zalo:     post.contacts.zalo     ?? "",
+        });
+      }
+      if (post.imageUrls) {
+        setItems(
+          post.imageUrls.map((url, i) => ({
+            id: `existing-${i}`,
+            url,
+            type: detectUrlType(url),
+          }))
+        );
+      }
+      setLoaded(true);
+    }).catch(() => router.replace("/board/promotion"));
   }, [id, user, router]);
 
   const updateContact = (type: ContactType, value: string) =>
     setContacts((prev) => ({ ...prev, [type]: value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!category)       return setError("카테고리를 선택해주세요.");
     if (!district)       return setError("지역을 선택해주세요.");
@@ -98,15 +98,19 @@ export default function PromotionEdit() {
       zalo:     contacts.zalo     || undefined,
     };
 
-    updatePost(Number(id), {
-      title: title.trim(),
-      content: content.trim(),
-      category: category as Category,
-      district: district as District,
-      contacts: contactsData,
-      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
-    });
-    router.push(`/board/promotion/${id}`);
+    try {
+      await updatePost(Number(id), {
+        title: title.trim(),
+        content: content.trim(),
+        category: category as Category,
+        district: district as District,
+        contacts: contactsData,
+        imageUrls,
+      });
+      router.push(`/board/promotion/${id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "수정에 실패했습니다.");
+    }
   };
 
   if (!loaded) return null;

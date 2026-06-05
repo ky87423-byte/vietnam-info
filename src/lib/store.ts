@@ -1,192 +1,150 @@
 /**
- * localStorage 기반 데이터 스토어
- * - 게시글(posts), 댓글(comments), 좋아요(likes) 관리
+ * API 기반 데이터 스토어 (구 localStorage 스토어 대체)
+ * - 게시글/댓글/추천/신고 — 모든 데이터는 서버 DB에 저장됨
  */
 
-import { Post, Category, District } from "@/lib/mockData";
+import { Category, District, MemberGrade } from "@/lib/mockData";
 
 /* ── 타입 ── */
-export interface StoredPost extends Omit<Post, "authorGrade" | "imageUrl"> {
-  isUserCreated: true;
+export interface StoredPost {
+  id: number;
+  type: "promotion" | "free" | "review";
+  title: string;
+  content: string;
+  author: string;
+  authorId?: number | null;
+  authorGrade?: MemberGrade;
+  category?: Category;
+  district?: District;
+  rating?: number;
   contacts?: { phone?: string; kakao?: string; telegram?: string; zalo?: string };
   imageUrls?: string[];
+  views: number;
+  likes: number;
+  dislikes: number;
+  commentCount: number;
+  createdAt: string;
+  isPaid?: boolean;
   hidden?: boolean;
+  isPinned?: boolean;
+  /** 하위 호환 — DB 전환 후 모든 글이 수정/삭제 대상 */
+  isUserCreated: true;
 }
-
-/* mock 게시글 숨김 오버라이드 타입 */
-export type MockOverride = { hidden?: boolean };
 
 export interface StoredComment {
   id: number;
   postId: number;
   author: string;
+  authorId?: number | null;
   content: string;
   createdAt: string;
 }
 
-/* ── 키 ── */
-const POSTS_KEY       = "vn_posts";
-const COMMENTS_KEY    = "vn_comments";
-const LIKES_KEY       = "vn_post_likes";
-const LIKED_KEY       = "vn_liked_posts";
-const DISLIKES_KEY    = "vn_post_dislikes";
-const DISLIKED_KEY    = "vn_disliked_posts";
-const NEXT_ID_KEY     = "vn_next_id";
-const MOCK_OVERRIDES  = "vn_mock_overrides";
-const PINNED_KEY      = "vn_pinned_posts";
-const REPORTS_KEY     = "vn_reports";
-
-/* ── ID 생성 ── */
-function nextId(): number {
-  const cur = Number(localStorage.getItem(NEXT_ID_KEY) ?? "10000");
-  localStorage.setItem(NEXT_ID_KEY, String(cur + 1));
-  return cur;
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "요청에 실패했습니다.");
+  return data as T;
 }
 
-function parse<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
+function normalizePost(p: Omit<StoredPost, "isUserCreated">): StoredPost {
+  return { ...p, isUserCreated: true };
 }
 
 /* ══ 게시글 ══ */
 
-export function getUserPosts(type?: StoredPost["type"]): StoredPost[] {
-  const all = parse<StoredPost[]>(POSTS_KEY, []);
-  return type ? all.filter((p) => p.type === type) : all;
+/** 게시글 목록 — type 미지정 시 전체. opts.all=true는 관리자용(숨김 포함) */
+export async function getPosts(
+  type?: StoredPost["type"],
+  opts?: { q?: string; author?: string; all?: boolean }
+): Promise<StoredPost[]> {
+  const params = new URLSearchParams();
+  if (type)         params.set("type", type);
+  if (opts?.q)      params.set("q", opts.q);
+  if (opts?.author) params.set("author", opts.author);
+  if (opts?.all)    params.set("all", "1");
+  const { posts } = await request<{ posts: Omit<StoredPost, "isUserCreated">[] }>(
+    `/api/posts?${params.toString()}`
+  );
+  return posts.map(normalizePost);
 }
 
-export function addPost(data: {
+/** 게시글 상세 — view=true면 조회수 증가 */
+export async function getPost(id: number, view = false): Promise<StoredPost | null> {
+  try {
+    const { post } = await request<{ post: Omit<StoredPost, "isUserCreated"> }>(
+      `/api/posts/${id}${view ? "?view=1" : ""}`
+    );
+    return normalizePost(post);
+  } catch {
+    return null;
+  }
+}
+
+export async function addPost(data: {
   type: StoredPost["type"];
   title: string;
   content: string;
-  author: string;
   category?: Category;
   district?: District;
   rating?: number;
   contacts?: StoredPost["contacts"];
   imageUrls?: string[];
-}): StoredPost {
-  const post: StoredPost = {
-    ...data,
-    id: nextId(),
-    views: 0,
-    likes: 0,
-    commentCount: 0,
-    createdAt: new Date().toISOString().slice(0, 10),
-    isPaid: false,
-    isUserCreated: true,
-  };
-  const all = parse<StoredPost[]>(POSTS_KEY, []);
-  localStorage.setItem(POSTS_KEY, JSON.stringify([post, ...all]));
-  return post;
+}): Promise<StoredPost> {
+  const { post } = await request<{ post: Omit<StoredPost, "isUserCreated"> }>("/api/posts", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return normalizePost(post);
 }
 
-export function deletePost(id: number): void {
-  const all = parse<StoredPost[]>(POSTS_KEY, []);
-  localStorage.setItem(POSTS_KEY, JSON.stringify(all.filter((p) => p.id !== id)));
-}
-
-/** 유저 게시글 필드 업데이트 (type 이동, hidden 토글, 내용 수정 등) */
-export function updatePost(
+export async function updatePost(
   id: number,
-  changes: Partial<Pick<StoredPost, "type" | "hidden" | "title" | "content" | "imageUrls" | "category" | "district" | "rating" | "contacts">>
-): void {
-  const all = parse<StoredPost[]>(POSTS_KEY, []);
-  const idx = all.findIndex((p) => p.id === id);
-  if (idx !== -1) {
-    all[idx] = { ...all[idx], ...changes };
-    localStorage.setItem(POSTS_KEY, JSON.stringify(all));
-  }
+  changes: Partial<Pick<StoredPost, "type" | "hidden" | "isPinned" | "isPaid" | "title" | "content" | "imageUrls" | "category" | "district" | "rating" | "contacts">>
+): Promise<void> {
+  await request(`/api/posts/${id}`, { method: "PATCH", body: JSON.stringify(changes) });
 }
 
-/* ── Mock 게시글 오버라이드 ── */
-
-export function getMockOverrides(): Record<number, MockOverride> {
-  return parse<Record<number, MockOverride>>(MOCK_OVERRIDES, {});
-}
-
-export function setMockHidden(id: number, hidden: boolean): void {
-  const all = getMockOverrides();
-  all[id] = { ...all[id], hidden };
-  localStorage.setItem(MOCK_OVERRIDES, JSON.stringify(all));
-}
-
-export function isMockHidden(id: number): boolean {
-  const all = getMockOverrides();
-  return all[id]?.hidden ?? false;
+export async function deletePost(id: number): Promise<void> {
+  await request(`/api/posts/${id}`, { method: "DELETE" });
 }
 
 /* ══ 댓글 ══ */
 
-export function getComments(postId: number): StoredComment[] {
-  const all = parse<Record<number, StoredComment[]>>(COMMENTS_KEY, {});
-  return all[postId] ?? [];
+export async function getComments(postId: number): Promise<StoredComment[]> {
+  const { comments } = await request<{ comments: StoredComment[] }>(`/api/posts/${postId}/comments`);
+  return comments;
 }
 
-export function addComment(postId: number, author: string, content: string): StoredComment {
-  const comment: StoredComment = {
-    id: Date.now(),
-    postId,
-    author,
-    content,
-    createdAt: new Date().toISOString().slice(0, 10),
-  };
-  const all = parse<Record<number, StoredComment[]>>(COMMENTS_KEY, {});
-  all[postId] = [comment, ...(all[postId] ?? [])];
-  localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
-
-  // commentCount 증가 (user posts만)
-  const posts = parse<StoredPost[]>(POSTS_KEY, []);
-  const idx = posts.findIndex((p) => p.id === postId);
-  if (idx !== -1) {
-    posts[idx].commentCount += 1;
-    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
-  }
+/** 댓글 작성 — 작성자는 서버 세션 기준 (포인트도 서버에서 지급) */
+export async function addComment(postId: number, content: string): Promise<StoredComment> {
+  const { comment } = await request<{ comment: StoredComment }>(`/api/posts/${postId}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
   return comment;
 }
 
-export function deleteComment(postId: number, commentId: number): void {
-  const all = parse<Record<number, StoredComment[]>>(COMMENTS_KEY, {});
-  if (all[postId]) {
-    all[postId] = all[postId].filter((c) => c.id !== commentId);
-    localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
-  }
-  // commentCount 감소
-  const posts = parse<StoredPost[]>(POSTS_KEY, []);
-  const idx = posts.findIndex((p) => p.id === postId);
-  if (idx !== -1 && posts[idx].commentCount > 0) {
-    posts[idx].commentCount -= 1;
-    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
-  }
+export async function deleteComment(commentId: number): Promise<void> {
+  await request(`/api/comments/${commentId}`, { method: "DELETE" });
 }
 
-export function getAllComments(): Array<StoredComment & { postId: number }> {
-  const all = parse<Record<number, StoredComment[]>>(COMMENTS_KEY, {});
-  return Object.values(all).flat() as Array<StoredComment & { postId: number }>;
+/** 전체 댓글 (관리자) */
+export async function getAllComments(): Promise<StoredComment[]> {
+  const { comments } = await request<{ comments: StoredComment[] }>("/api/admin/comments");
+  return comments;
 }
 
-/* ══ 공지 고정핀 ══ */
+/* ══ 공지 고정핀 (관리자) ══ */
 
-export type PinnedPosts = { free: number[]; review: number[]; promotion: number[] };
-
-export function getPinnedPosts(): PinnedPosts {
-  return parse<PinnedPosts>(PINNED_KEY, { free: [], review: [], promotion: [] });
+export async function setPinned(id: number, isPinned: boolean): Promise<void> {
+  await updatePost(id, { isPinned });
 }
 
-export function togglePinPost(id: number, type: "free" | "review" | "promotion"): boolean {
-  const pinned = getPinnedPosts();
-  const list   = pinned[type];
-  const isPinned = list.includes(id);
-  pinned[type] = isPinned ? list.filter((x) => x !== id) : [id, ...list];
-  localStorage.setItem(PINNED_KEY, JSON.stringify(pinned));
-  return !isPinned;
-}
-
-/* ══ 신고 기능 ══ */
+/* ══ 신고 ══ */
 
 export type ReportTarget = "post" | "comment";
 export type ReportReason = "spam" | "abuse" | "illegal" | "adult" | "other";
@@ -196,7 +154,7 @@ export interface Report {
   id: number;
   targetType: ReportTarget;
   targetId: number;
-  postId?: number;       // comment 신고 시 해당 게시글 ID
+  postId?: number;
   reporterName: string;
   reason: ReportReason;
   detail?: string;
@@ -212,114 +170,47 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
   other:   "기타",
 };
 
-export function addReport(data: Omit<Report, "id" | "status" | "createdAt">): Report {
-  const all = parse<Report[]>(REPORTS_KEY, []);
-  const report: Report = {
-    ...data,
-    id:        Date.now(),
-    status:    "pending",
-    createdAt: new Date().toISOString().slice(0, 10),
-  };
-  localStorage.setItem(REPORTS_KEY, JSON.stringify([report, ...all]));
-  return report;
+export async function addReport(data: {
+  targetType: ReportTarget;
+  targetId: number;
+  postId?: number;
+  reason: ReportReason;
+  detail?: string;
+}): Promise<void> {
+  await request("/api/reports", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function getReports(): Report[] {
-  return parse<Report[]>(REPORTS_KEY, []);
+export async function getReports(): Promise<Report[]> {
+  const { reports } = await request<{ reports: Report[] }>("/api/reports");
+  return reports;
 }
 
-export function updateReportStatus(id: number, status: ReportStatus): void {
-  const all = parse<Report[]>(REPORTS_KEY, []);
-  const idx = all.findIndex((r) => r.id === id);
-  if (idx !== -1) {
-    all[idx] = { ...all[idx], status };
-    localStorage.setItem(REPORTS_KEY, JSON.stringify(all));
+export async function updateReportStatus(id: number, status: ReportStatus): Promise<void> {
+  await request(`/api/reports/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+}
+
+/* ══ 추천/비추천 ══ */
+
+export interface VoteResult {
+  likes: number;
+  dislikes: number;
+  myVote: -1 | 0 | 1;
+}
+
+/** 내 투표 상태 (비로그인 시 0) */
+export async function getMyVote(postId: number): Promise<-1 | 0 | 1> {
+  try {
+    const { myVote } = await request<{ myVote: -1 | 0 | 1 }>(`/api/posts/${postId}/vote`);
+    return myVote;
+  } catch {
+    return 0;
   }
 }
 
-/* ══ 좋아요 ══ */
-
-export function getLikeState(postId: number, baseLikes: number): { count: number; liked: boolean } {
-  const likes = parse<Record<number, number>>(LIKES_KEY, {});
-  const likedSet = parse<number[]>(LIKED_KEY, []);
-  const count = likes[postId] ?? baseLikes;
-  const liked = likedSet.includes(postId);
-  return { count, liked };
-}
-
-export function toggleLike(postId: number, baseLikes: number): { count: number; liked: boolean } {
-  const likes = parse<Record<number, number>>(LIKES_KEY, {});
-  const likedArr = parse<number[]>(LIKED_KEY, []);
-
-  const cur = likes[postId] ?? baseLikes;
-  const wasLiked = likedArr.includes(postId);
-
-  const newCount = wasLiked ? cur - 1 : cur + 1;
-  const newLiked = !wasLiked;
-
-  likes[postId] = newCount;
-  const newArr = wasLiked ? likedArr.filter((id) => id !== postId) : [...likedArr, postId];
-
-  localStorage.setItem(LIKES_KEY, JSON.stringify(likes));
-  localStorage.setItem(LIKED_KEY, JSON.stringify(newArr));
-
-  // 추천 클릭 시 비추천 자동 취소
-  if (!wasLiked) {
-    const dislikes = parse<Record<number, number>>(DISLIKES_KEY, {});
-    const dislikedArr = parse<number[]>(DISLIKED_KEY, []);
-    if (dislikedArr.includes(postId)) {
-      dislikes[postId] = Math.max(0, (dislikes[postId] ?? 0) - 1);
-      localStorage.setItem(DISLIKES_KEY, JSON.stringify(dislikes));
-      localStorage.setItem(DISLIKED_KEY, JSON.stringify(dislikedArr.filter(id => id !== postId)));
-    }
-  }
-
-  return { count: newCount, liked: newLiked };
-}
-
-/* ══ 비추천 ══ */
-
-export function getDislikeState(postId: number): { count: number; disliked: boolean } {
-  const dislikes = parse<Record<number, number>>(DISLIKES_KEY, {});
-  const dislikedSet = parse<number[]>(DISLIKED_KEY, []);
-  return { count: dislikes[postId] ?? 0, disliked: dislikedSet.includes(postId) };
-}
-
-export function toggleDislike(postId: number, baseLikes: number): { dislikeCount: number; disliked: boolean; likeCount: number; liked: boolean } {
-  const dislikes = parse<Record<number, number>>(DISLIKES_KEY, {});
-  const dislikedArr = parse<number[]>(DISLIKED_KEY, []);
-
-  const cur = dislikes[postId] ?? 0;
-  const wasDisliked = dislikedArr.includes(postId);
-
-  const newDislikeCount = wasDisliked ? cur - 1 : cur + 1;
-  dislikes[postId] = newDislikeCount;
-  const newDislikedArr = wasDisliked
-    ? dislikedArr.filter(id => id !== postId)
-    : [...dislikedArr, postId];
-
-  localStorage.setItem(DISLIKES_KEY, JSON.stringify(dislikes));
-  localStorage.setItem(DISLIKED_KEY, JSON.stringify(newDislikedArr));
-
-  // 비추천 클릭 시 추천 자동 취소
-  let likeCount = getLikeState(postId, baseLikes).count;
-  let liked = false;
-  if (!wasDisliked) {
-    const likes = parse<Record<number, number>>(LIKES_KEY, {});
-    const likedArr = parse<number[]>(LIKED_KEY, []);
-    if (likedArr.includes(postId)) {
-      likeCount = Math.max(0, (likes[postId] ?? baseLikes) - 1);
-      likes[postId] = likeCount;
-      localStorage.setItem(LIKES_KEY, JSON.stringify(likes));
-      localStorage.setItem(LIKED_KEY, JSON.stringify(likedArr.filter(id => id !== postId)));
-    } else {
-      likeCount = getLikeState(postId, baseLikes).count;
-    }
-  } else {
-    const state = getLikeState(postId, baseLikes);
-    likeCount = state.count;
-    liked = state.liked;
-  }
-
-  return { dislikeCount: newDislikeCount, disliked: !wasDisliked, likeCount, liked };
+/** 추천(1)/비추천(-1) 토글 — 로그인 필요 */
+export async function vote(postId: number, value: 1 | -1): Promise<VoteResult> {
+  return request<VoteResult>(`/api/posts/${postId}/vote`, {
+    method: "POST",
+    body: JSON.stringify({ value }),
+  });
 }

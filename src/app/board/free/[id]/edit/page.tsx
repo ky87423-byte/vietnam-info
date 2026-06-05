@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { getUserPosts, updatePost } from "@/lib/store";
+import { getPost, updatePost } from "@/lib/store";
 import { MediaItem, detectUrlType } from "@/lib/cloudinary";
 import MediaUploader from "@/components/ImageUploader";
 
@@ -20,28 +20,28 @@ export default function FreeEdit() {
   const [loaded, setLoaded]   = useState(false);
 
   useEffect(() => {
-    const numId = Number(id);
-    const post = getUserPosts("free").find((p) => p.id === numId);
-    if (!post) { router.replace("/board/free"); return; }
-    if (user && user.name !== post.author && user.memberType !== "admin") {
-      router.replace(`/board/free/${id}`);
-      return;
-    }
-    setTitle(post.title);
-    setContent(post.content);
-    if (post.imageUrls) {
-      setItems(
-        post.imageUrls.map((url, i) => ({
-          id: `existing-${i}`,
-          url,
-          type: detectUrlType(url),
-        }))
-      );
-    }
-    setLoaded(true);
+    getPost(Number(id)).then((post) => {
+      if (!post) { router.replace("/board/free"); return; }
+      if (user && user.id !== post.authorId && user.memberType !== "admin") {
+        router.replace(`/board/free/${id}`);
+        return;
+      }
+      setTitle(post.title);
+      setContent(post.content);
+      if (post.imageUrls) {
+        setItems(
+          post.imageUrls.map((url, i) => ({
+            id: `existing-${i}`,
+            url,
+            type: detectUrlType(url),
+          }))
+        );
+      }
+      setLoaded(true);
+    }).catch(() => router.replace("/board/free"));
   }, [id, user, router]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return setError("제목을 입력해주세요.");
     if (title.trim().length > 200) return setError("제목은 200자 이내로 입력해주세요.");
@@ -51,12 +51,16 @@ export default function FreeEdit() {
 
     const imageUrls = items.filter((i) => !i.error && !i.uploading).map((i) => i.url);
 
-    updatePost(Number(id), {
-      title: title.trim(),
-      content: content.trim(),
-      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
-    });
-    router.push(`/board/free/${id}`);
+    try {
+      await updatePost(Number(id), {
+        title: title.trim(),
+        content: content.trim(),
+        imageUrls,
+      });
+      router.push(`/board/free/${id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "수정에 실패했습니다.");
+    }
   };
 
   if (!loaded) return null;

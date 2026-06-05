@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── User ──────────────────────────────────────────────────────────────────────
+// memberType: "general" | "business" | "admin"  (프론트 MemberType과 동일 문자열)
+// grade는 points에서 계산 (lib/points.ts gradeFromPoints) — DB에 저장하지 않음
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  name          String   @unique               // 닉네임
+  passwordHash  String   @default("")
+  memberType    String   @default("general") @db.VarChar(16)
+  businessName  String?
+  points        Int      @default(0)
+  status        String   @default("active") @db.VarChar(16)  // active | blocked
+  lastLoginDate String?  @db.VarChar(10)        // YYYY-MM-DD — 1일 1회 로그인 포인트
+  createdAt     DateTime @default(now())
+
+  posts     Post[]
+  comments  Comment[]
+  votes     PostVote[]
+  pointLogs PointLog[]
+  reports   Report[]
+
+  @@index([memberType])
+  @@index([status])
+}
+
+// ── Post ──────────────────────────────────────────────────────────────────────
+// type: "promotion" | "free" | "review"  (프론트 Post.type과 동일 문자열)
+// authorName: 작성 시점 닉네임 스냅샷 (시드/탈퇴 유저 글 표시용)
+
+model Post {
+  id              Int       @id @default(autoincrement())
+  type            String    @db.VarChar(16)
+  title           String
+  content         String    @db.Text
+  authorId        Int?
+  authorName      String
+  category        String?   @db.VarChar(16)     // food|golf|hotel|rent|massage|etc
+  district        String?   @db.VarChar(8)      // 1군~9군|기타
+  rating          Int?                           // 후기 별점 1~5
+  contactPhone    String    @default("")
+  contactKakao    String    @default("")
+  contactTelegram String    @default("")
+  contactZalo     String    @default("")
+  imageUrls       String[]
+  views           Int       @default(0)
+  likeCount       Int       @default(0)          // PostVote 집계 캐시
+  dislikeCount    Int       @default(0)
+  commentCount    Int       @default(0)
+  hidden          Boolean   @default(false)      // 관리자 숨김
+  isPinned        Boolean   @default(false)      // 공지 고정핀
+  isPaid          Boolean   @default(false)      // 유료 홍보
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?                      // soft delete
+
+  author   User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  comments Comment[]
+  votes    PostVote[]
+
+  @@index([type, hidden, deletedAt, createdAt]) // 게시판 목록 (핵심)
+  @@index([type, isPinned])                     // 고정글 우선 정렬
+  @@index([authorId, createdAt])                // 작성자별 (마이페이지/관리자)
+}
+
+// ── Comment ───────────────────────────────────────────────────────────────────
+
+model Comment {
+  id         Int       @id @default(autoincrement())
+  postId     Int
+  authorId   Int?
+  authorName String
+  content    String    @db.Text
+  createdAt  DateTime  @default(now())
+  deletedAt  DateTime?
+
+  post   Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+// ── PostVote — 추천/비추천 (1인 1표) ─────────────────────────────────────────
+
+model PostVote {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  userId    Int
+  value     Int      // 1 = 추천, -1 = 비추천
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+// ── Report — 신고 ─────────────────────────────────────────────────────────────
+// targetType: "post" | "comment", reason: spam|abuse|illegal|adult|other
+
+model Report {
+  id           Int      @id @default(autoincrement())
+  targetType   String   @db.VarChar(16)
+  targetId     Int
+  postId       Int?                              // comment 신고 시 해당 게시글
+  reporterId   Int?
+  reporterName String
+  reason       String   @db.VarChar(16)
+  detail       String   @default("")
+  status       String   @default("pending") @db.VarChar(16) // pending|resolved|dismissed
+  createdAt    DateTime @default(now())
+
+  reporter User? @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
+
+// ── PointLog — 포인트 지급/차감 이력 ─────────────────────────────────────────
+// action: signup|login|post|comment|admin|etc
+
+model PointLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  action    String   @db.VarChar(16)
+  amount    Int      // + 지급, - 차감
+  balance   Int      // 지급 직후 잔액 스냅샷
+  memo      String   @default("")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+// ── SiteConfig — 전역 설정 (singleton, id=1) ─────────────────────────────────
+
+model SiteConfig {
+  id           Int      @id @default(1)
+  pointPost    Int      @default(10)   // 게시글 작성 포인트
+  pointComment Int      @default(5)    // 댓글 작성 포인트
+  pointLogin   Int      @default(5)    // 1일 1회 로그인 포인트
+  updatedAt    DateTime @updatedAt
+}

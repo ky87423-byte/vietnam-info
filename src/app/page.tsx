@@ -1,16 +1,31 @@
 import Link from "next/link";
 import AdBanner from "@/components/AdBanner";
 import PostCard from "@/components/PostCard";
-import { promotionPosts, freePosts, reviewPosts, categoryIcons, categoryLabels } from "@/lib/mockData";
+import { categoryIcons, categoryLabels } from "@/lib/mockData";
+import { prisma } from "@/lib/prisma";
+import { serializePost } from "@/lib/serialize";
 
 const categories = ["food", "golf", "hotel", "rent", "massage", "etc"] as const;
 const districts = ["1군", "2군", "3군", "4군", "5군", "6군", "7군"] as const;
 
-export default function Home() {
-  const topPromotion = promotionPosts.filter((p) => p.isPaid);
-  const recentPromotion = promotionPosts.slice(0, 4);
-  const recentFree = freePosts.slice(0, 4);
-  const recentReview = reviewPosts.slice(0, 4);
+async function recentPosts(type: string, take = 4) {
+  const posts = await prisma.post.findMany({
+    where: { type, hidden: false, deletedAt: null },
+    include: { author: { select: { points: true } } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take,
+  });
+  return posts.map(serializePost);
+}
+
+export default async function Home() {
+  const [promotion, recentFree, recentReview] = await Promise.all([
+    recentPosts("promotion", 20),
+    recentPosts("free"),
+    recentPosts("review"),
+  ]);
+  const topPromotion = promotion.filter((p) => p.isPaid);
+  const recentPromotion = promotion.slice(0, 4);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-10">

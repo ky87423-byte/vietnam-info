@@ -5,7 +5,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { addPost } from "@/lib/store";
-import { getPointRewards } from "@/lib/points";
 import { MediaItem } from "@/lib/cloudinary";
 import MediaUploader from "@/components/ImageUploader";
 
@@ -14,11 +13,13 @@ export default function FreeWrite() {
   const [content, setContent] = useState("");
   const [items, setItems]     = useState<MediaItem[]>([]);
   const [error, setError]     = useState("");
-  const { user, awardPoints } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  const { user, refreshUser } = useAuth();
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return setError("로그인 후 작성할 수 있습니다.");
     if (!title.trim()) return setError("제목을 입력해주세요.");
     if (title.trim().length > 200) return setError("제목은 200자 이내로 입력해주세요.");
     if (!content.trim()) return setError("내용을 입력해주세요.");
@@ -29,15 +30,20 @@ export default function FreeWrite() {
       .filter((i) => !i.error && !i.uploading)
       .map((i) => i.url);
 
-    addPost({
-      type: "free",
-      title: title.trim(),
-      content: content.trim(),
-      author: user?.name ?? "익명",
-      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
-    });
-    awardPoints(getPointRewards().post);
-    router.push("/board/free");
+    setSubmitting(true);
+    try {
+      await addPost({
+        type: "free",
+        title: title.trim(),
+        content: content.trim(),
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+      });
+      void refreshUser(); // 서버에서 지급된 포인트 반영
+      router.push("/board/free");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "게시글 등록에 실패했습니다.");
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -90,8 +96,8 @@ export default function FreeWrite() {
           <Link href="/board/free" className="px-5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
             취소
           </Link>
-          <button type="submit" className="px-5 py-2.5 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 transition-colors">
-            등록하기
+          <button type="submit" disabled={submitting} className="px-5 py-2.5 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 transition-colors disabled:opacity-50">
+            {submitting ? "등록 중..." : "등록하기"}
           </button>
         </div>
       </form>
